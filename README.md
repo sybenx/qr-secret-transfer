@@ -93,7 +93,7 @@ browser cannot do), the `frost://` carrier (§12.3), and reading the code by cam
 
 1.5-draft was written from this implementation: every place 1.4 could be read two
 ways, or was wrong, is recorded under "Resolved" in the specification's
-[`SPEC_ISSUES.md`]({ISS}). New ones go there too.
+[`SPEC_ISSUES.md`](https://github.com/sybenx/nostr-key-management/blob/main/SPEC_ISSUES.md). New ones go there too.
 
 ## Relays
 
