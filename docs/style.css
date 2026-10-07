@@ -1,0 +1,999 @@
+/*
+  QR Secret Transfer: the page.
+
+  The layout is the protocol: two screens, and what is between them. Only the two
+  screens are readable. The strip between them is what a relay sees.
+
+  Colour carries one meaning each:
+    paper and ink   the two colours a QR code is made of
+    field           the public network between the two devices
+    caution         something is about to leave this device
+
+  There is no green, no padlock, no shield and no tick anywhere on this page. The
+  protocol forbids marks that imply assurance next to a code (spec §11.2b), and a
+  page about it should not use them either.
+*/
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('fonts/atkinson-hyperlegible-next-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('fonts/atkinson-hyperlegible-next-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('fonts/atkinson-hyperlegible-next-latin-800-normal.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Mono';
+  src: url('fonts/atkinson-hyperlegible-mono-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Mono';
+  src: url('fonts/atkinson-hyperlegible-mono-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --paper: #fff;
+  --ink: #000;
+  --field: #2437d8;
+  --field-deep: #1a2ab0;
+  --bit-dark: #1a2ab0;
+  --bit-light: #4a5cf2;
+  --caution: #ffd400;
+  --quiet: #4a5160;
+  --rule: #c6cbd8;
+  --wash: #eef1f8;
+
+  --sans: 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Atkinson Hyperlegible Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --measure: 64ch;
+  --screen-radius: 1.25rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.125rem/1.5 var(--sans);
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 4px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--field);
+  outline-offset: 3px;
+}
+
+strong {
+  font-weight: 700;
+}
+
+code {
+  font: 400 0.95em var(--mono);
+  background: var(--wash);
+  padding: 0.1em 0.3em;
+}
+
+.wrap {
+  width: min(100% - 2.5rem, 70rem);
+  margin-inline: auto;
+}
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.5rem 0.75rem;
+  z-index: 2;
+}
+
+.skip:focus {
+  top: 1rem;
+}
+
+/* ---- top ---------------------------------------------------------------------------- */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+  padding-block: 1.25rem;
+}
+
+.mark {
+  display: block;
+  line-height: 0;
+}
+
+.top nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  font-size: 1rem;
+}
+
+.hero {
+  padding-block: 2.25rem 2.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.75rem, 5.2vw + 1.4rem, 5.75rem);
+  font-weight: 800;
+  line-height: 0.96;
+  letter-spacing: -0.025em;
+}
+
+.lede {
+  margin-top: 1.25rem;
+  max-width: 58ch;
+  font-size: clamp(1.125rem, 0.5vw + 1.05rem, 1.3125rem);
+  line-height: 1.45;
+}
+
+/* ---- the field: two screens and what is between them --------------------------------- */
+
+.field {
+  background: var(--field);
+  color: var(--paper);
+  padding-block: 1.75rem 1.25rem;
+}
+
+.lanes {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) 6.5rem minmax(0, 5fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'here-name gutter-name there-name'
+    'here      gutter      there';
+}
+
+.lane {
+  display: contents;
+}
+
+.lane-name {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding-bottom: 0.5rem;
+}
+
+.lane-here .lane-name {
+  grid-area: here-name;
+}
+
+.lane-there .lane-name {
+  grid-area: there-name;
+}
+
+.gutter-name {
+  grid-area: gutter-name;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.screen {
+  grid-area: here;
+  scroll-margin-top: 3.25rem;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--screen-radius);
+  padding: 1.75rem;
+  min-height: 26rem;
+}
+
+/* The one state that looks unlike every other: something is about to leave this device. */
+.screen.is-release {
+  background: var(--caution);
+}
+
+.screen.is-release :focus-visible {
+  outline-color: var(--ink);
+}
+
+.ghost {
+  grid-area: there;
+  align-self: start;
+  background: var(--field-deep);
+  border-radius: var(--screen-radius);
+  padding: 1.5rem;
+}
+
+.ghost > * + * {
+  margin-top: 0.875rem;
+}
+
+.gutter {
+  grid-area: gutter;
+  position: relative;
+  min-height: 3.5rem;
+}
+
+/* Out of flow, so that the strip takes its height from the screens and never props them up. */
+.gutter canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.crossed {
+  margin-top: 0.875rem;
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 54rem) {
+  .lanes {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      'here-name'
+      'here'
+      'gutter'
+      'there-name'
+      'there';
+  }
+
+  .gutter-name {
+    display: none;
+  }
+
+  .gutter {
+    height: 3.5rem;
+  }
+
+  .lane-there .lane-name {
+    padding-top: 0.5rem;
+  }
+
+  .screen {
+    padding: 1.25rem;
+    min-height: 0;
+  }
+
+  .ghost {
+    padding: 1.25rem;
+  }
+}
+
+/* ---- inside the screen ---------------------------------------------------------------- */
+
+.screen > * + * {
+  margin-top: 1rem;
+}
+
+.state {
+  font-size: clamp(1.5rem, 1.2vw + 1.2rem, 1.875rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+
+.fine {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--quiet);
+}
+
+.is-release .fine,
+.ghost .fine {
+  color: inherit;
+}
+
+.fine:empty,
+.mismatch:empty,
+.notice:empty {
+  display: none;
+}
+
+.problem,
+.over {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.label {
+  display: block;
+  font-weight: 700;
+}
+
+.label + * {
+  margin-top: 0.375rem;
+}
+
+.btn {
+  font: 700 1rem/1.25 var(--sans);
+  padding: 0.75rem 1.125rem;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn-primary:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.btn-quiet {
+  border-color: transparent;
+  background: none;
+  padding-inline: 0.25rem;
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+.btn-quiet:hover {
+  background: none;
+  color: var(--ink);
+  text-decoration-thickness: 4px;
+}
+
+.btn:disabled,
+.btn:disabled:hover {
+  background: none;
+  border-style: dashed;
+  color: var(--quiet);
+  border-color: var(--quiet);
+  cursor: not-allowed;
+}
+
+.is-release .btn:disabled {
+  color: #4d4000;
+  border-color: #4d4000;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem 0.75rem;
+}
+
+.choices {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.choice {
+  display: grid;
+  gap: 0.125rem;
+  width: 100%;
+  padding: 1rem 1.125rem;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice strong {
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.choice span {
+  font-size: 0.9375rem;
+}
+
+.choice:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+textarea,
+input[type='url'] {
+  display: block;
+  width: 100%;
+  font: 400 1rem/1.4 var(--mono);
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  padding: 0.625rem 0.75rem;
+  resize: vertical;
+}
+
+.link {
+  background: var(--wash);
+  word-break: break-all;
+}
+
+/* Text that came from somewhere else must wrap wherever it has to. */
+.screen,
+.ghost {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.btn,
+.choice {
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+/* A statement about the other party, or a claim it makes about itself. */
+.claim {
+  border-left: 0.375rem solid var(--ink);
+  padding-left: 0.75rem;
+}
+
+.claim[hidden] {
+  display: none;
+}
+
+/* The pairing code: five discrete positions, shown on one device and typed on the other. */
+.code {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.digit {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 3.75rem;
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 clamp(1.75rem, 7vw, 2.75rem) / 1 var(--mono);
+  text-align: center;
+}
+
+.code-shown {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.code-shown .digit {
+  max-width: 4.5rem;
+  font-size: clamp(2rem, 9vw, 3.5rem);
+}
+
+.mismatch {
+  font-weight: 700;
+  border-left: 0.375rem solid var(--ink);
+  padding-left: 0.75rem;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.625rem;
+  align-items: start;
+  cursor: pointer;
+}
+
+.check input {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--ink);
+}
+
+/* §9.1: declining is the prominent control. The control that sends is never the easy one. */
+.actions-release {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.actions-release .btn-primary {
+  padding-block: 1rem;
+  font-size: 1.3125rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.actions-release .btn-plain {
+  background: none;
+  border-width: 1px;
+  font-weight: 400;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.actions-release .btn-plain:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+  border-width: 2px;
+}
+
+/* §11.2b: a code is never shown bare, and one that makes its scanner a Sender weighs more. */
+.qr {
+  max-width: 21rem;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.qr-code {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.qr figcaption {
+  padding: 0.625rem 0.75rem;
+  border-top: 2px solid var(--ink);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.qr-offer {
+  border-width: 0.75rem;
+}
+
+.qr-offer figcaption {
+  border-top: 0;
+  background: var(--ink);
+  color: var(--caution);
+  font-size: 1.125rem;
+  padding: 0.75rem 0.5rem 0.25rem;
+}
+
+.here-qr {
+  background: var(--paper);
+  color: var(--ink);
+  width: 11rem;
+  max-width: 100%;
+}
+
+.here-qr figcaption {
+  padding: 0 0.625rem 0.5rem;
+  font: 400 0.8125rem/1.3 var(--mono);
+  word-break: break-all;
+}
+
+.viewfinder {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--ink);
+}
+
+.rendering {
+  font-size: 1.3125rem;
+  font-weight: 700;
+  border-left: 0.375rem solid var(--ink);
+  padding-left: 0.75rem;
+}
+
+.secret {
+  display: block;
+  font: 700 1.3125rem/1.4 var(--mono);
+  background: var(--wash);
+  border: 2px solid var(--ink);
+  padding: 0.75rem;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.notice {
+  border: 2px solid var(--ink);
+  padding: 0.875rem;
+}
+
+.notice > * + * {
+  margin-top: 0.625rem;
+}
+
+.more summary,
+.device summary {
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+.more > * + * {
+  margin-top: 0.75rem;
+}
+
+.relays {
+  list-style: none;
+  padding: 0;
+  font-size: 0.9375rem;
+}
+
+.relay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 0.75rem;
+  padding-block: 0.375rem;
+  border-top: 1px solid var(--rule);
+}
+
+.relay-url {
+  font-family: var(--mono);
+  word-break: break-all;
+}
+
+.relay-state {
+  color: var(--quiet);
+  flex: 1 1 12rem;
+}
+
+.relay-open .relay-state,
+.relay-failed .relay-state {
+  color: var(--ink);
+}
+
+.relay .btn {
+  padding: 0 0.25rem;
+  font-size: 0.9375rem;
+}
+
+/* ---- this device ---------------------------------------------------------------------- */
+
+.device {
+  padding-top: 1.25rem;
+}
+
+.device details {
+  border-bottom: 1px solid var(--rule);
+  padding-block: 0.75rem;
+}
+
+.device details > * + * {
+  margin-top: 0.75rem;
+}
+
+#device > * + * {
+  margin-top: 0.75rem;
+}
+
+#device h3 {
+  font-size: 1.125rem;
+  font-weight: 800;
+  padding-top: 0.5rem;
+}
+
+.add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.375rem 0.625rem;
+  max-width: 34rem;
+  align-items: end;
+}
+
+.add .label {
+  grid-column: 1 / -1;
+}
+
+.add .label + * {
+  margin-top: 0;
+}
+
+.log {
+  padding-left: 1.25rem;
+  font-size: 0.9375rem;
+}
+
+#trace {
+  margin-bottom: 0;
+  max-height: 16rem;
+  overflow: auto;
+  background: var(--wash);
+  padding: 0.75rem;
+  font: 400 0.875rem/1.5 var(--mono);
+  white-space: pre-wrap;
+}
+
+/* ---- the rest of the page ------------------------------------------------------------- */
+
+.prose {
+  padding-top: 4.5rem;
+}
+
+.prose h2 {
+  font-size: clamp(1.875rem, 2vw + 1.3rem, 2.75rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin-bottom: 1.25rem;
+}
+
+.prose h3 {
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  margin-top: 1.75rem;
+  margin-bottom: 0.375rem;
+}
+
+.prose > p,
+.prose > ul {
+  max-width: var(--measure);
+}
+
+.prose > p + p {
+  margin-top: 0.875rem;
+}
+
+.prose ul {
+  padding-left: 1.25rem;
+}
+
+.prose li + li {
+  margin-top: 0.625rem;
+}
+
+.links {
+  margin-block: 1.25rem;
+}
+
+/* A ladder diagram: each step sits under the device that takes it, and what passes
+   between them sits in the middle, marked by how it travels. */
+.ladder-head,
+.ladder > li {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 8.5rem minmax(0, 1fr);
+  column-gap: 1.25rem;
+}
+
+.ladder-head {
+  margin-top: 2rem;
+  padding-bottom: 0.5rem;
+  font-weight: 800;
+}
+
+.ladder-head span:nth-child(1) {
+  grid-column: 2;
+}
+
+.ladder-head span:nth-child(2) {
+  grid-column: 3;
+  text-align: center;
+  font-weight: 400;
+}
+
+.ladder-head span:nth-child(3) {
+  grid-column: 4;
+}
+
+.ladder {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 2rem;
+  counter-reset: rung;
+  border-bottom: 2px solid var(--ink);
+}
+
+.ladder > li {
+  counter-increment: rung;
+  align-items: start;
+  padding-block: 1rem;
+  border-top: 2px solid var(--ink);
+}
+
+.ladder > li + li {
+  margin-top: 0;
+}
+
+.ladder > li::before {
+  content: counter(rung);
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 1.3125rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.ladder .l {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.ladder .wire {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.ladder .r {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.wire {
+  align-self: center;
+  display: grid;
+  gap: 0.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.wire::before {
+  content: '';
+  display: block;
+}
+
+.wire-relay::before {
+  height: 2rem;
+  background-color: var(--field-deep);
+  background-image: linear-gradient(90deg, var(--bit-light) 50%, transparent 0), linear-gradient(var(--field) 50%, transparent 0);
+  background-size: 16px 8px, 8px 16px;
+}
+
+.wire-eye::before,
+.wire-hand::before {
+  border-top: 3px dotted var(--ink);
+  margin-top: 0.875rem;
+}
+
+.wire-hand {
+  font-weight: 800;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.pair h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.pair > div {
+  border-top: 2px solid var(--ink);
+  padding-top: 1rem;
+}
+
+.pair > div:last-child {
+  border-top: 0;
+  background: var(--caution);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.pair + p {
+  margin-top: 1.5rem;
+}
+
+.foot {
+  margin-top: 5rem;
+  padding-block: 1.5rem 3rem;
+  border-top: 2px solid var(--ink);
+  font-size: 0.9375rem;
+}
+
+.foot p {
+  max-width: var(--measure);
+}
+
+@media (max-width: 54rem) {
+  .ladder-head {
+    display: none;
+  }
+
+  .ladder {
+    margin-top: 1.5rem;
+  }
+
+  .ladder > li {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    column-gap: 0.5rem;
+    row-gap: 0.625rem;
+  }
+
+  .ladder .l,
+  .ladder .wire,
+  .ladder .r {
+    grid-column: 2;
+    grid-row: auto;
+  }
+
+  .wire {
+    justify-self: start;
+    grid-template-columns: 4rem auto;
+    align-items: center;
+    text-align: left;
+  }
+
+  .wire-eye::before,
+  .wire-hand::before {
+    margin-top: 0;
+  }
+
+  .wire-relay::before {
+    height: 1.5rem;
+  }
+
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .prose {
+    padding-top: 3.25rem;
+  }
+}
+
+@media print {
+  .field,
+  .device,
+  .top nav {
+    display: none;
+  }
+}
