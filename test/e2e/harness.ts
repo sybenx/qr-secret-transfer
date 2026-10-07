@@ -1,7 +1,7 @@
 // Two "devices" are two browser contexts: separate storage, separate pages, and the
 // only thing they share is a relay, exactly as two real devices would.
 
-import { type Browser, type BrowserContext, type Page, expect } from '@playwright/test';
+import { type Browser, type BrowserContext, type BrowserContextOptions, type Page, expect } from '@playwright/test';
 import { type Behaviour, type TestRelay, startRelay } from '../../tools/test-relay.mjs';
 import { serve } from '../../tools/serve.mjs';
 
@@ -14,13 +14,36 @@ export interface World {
   contexts: BrowserContext[];
   problems: string[];
   relay(behaviour?: Behaviour): Promise<TestRelay>;
+  /** A browser context that cannot leave this machine; see `sealed`. */
+  context(browser: Browser, options?: BrowserContextOptions): Promise<BrowserContext>;
   /** `check` defaults to `type`, the strictest; `null` leaves it unset, as on a first visit. */
   device(browser: Browser, relayUrls: string[], options?: { viewport?: { width: number; height: number }; url?: string; check?: string | null }): Promise<Page>;
   close(): Promise<void>;
 }
 
+// The tests run against relays on this machine and nothing else. The page as shipped
+// asks public relays for NIP-66 discovery and falls back to public seeds, so a test
+// whose local relays all fail would reach the internet, and pass or fail on whatever
+// answered. Two guards keep it here:
+//   - the page is served with discovery and seeds set to "none", as an adopter would set
+//     them, so the page never tries; and
+//   - any WebSocket to anywhere else is cut off before it leaves and reported as a
+//     problem, which every spec's afterEach fails on.
+const OFFLINE = '<meta name="qrst:discovery" content="none"><meta name="qrst:seeds" content="none">';
+const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+async function sealed(context: BrowserContext, problems: string[]): Promise<void> {
+  await context.routeWebSocket(
+    (url) => !LOCAL.has(url.hostname),
+    (ws) => {
+      problems.push(`left this machine: WebSocket to ${ws.url()}`);
+      void ws.close();
+    },
+  );
+}
+
 export async function world(): Promise<World> {
-  const site = await serve();
+  const site = await serve({ head: OFFLINE });
   const w: World = {
     site,
     relays: [],
@@ -31,9 +54,14 @@ export async function world(): Promise<World> {
       w.relays.push(r);
       return r;
     },
-    async device(browser, relayUrls, options = {}) {
-      const context = await browser.newContext({ viewport: options.viewport ?? { width: 1100, height: 900 } });
+    async context(browser, options = {}) {
+      const context = await browser.newContext(options);
       w.contexts.push(context);
+      await sealed(context, w.problems);
+      return context;
+    },
+    async device(browser, relayUrls, options = {}) {
+      const context = await w.context(browser, { viewport: options.viewport ?? { width: 1100, height: 900 } });
       // Configure the page as a visitor would under "This device": these relays, and no seeds.
       const check = options.check === undefined ? 'type' : options.check;
       await context.addInitScript(

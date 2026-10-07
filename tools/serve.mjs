@@ -16,13 +16,19 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-export async function serve({ port = 0, root = 'docs' } = {}) {
+/** `head` is markup added at the top of index.html's <head>; the browser tests use it to configure the page. */
+export async function serve({ port = 0, root = 'docs', head = '' } = {}) {
   const server = createServer(async (req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     const file = join(root, normalize(path === '/' ? '/index.html' : path));
     if (!file.startsWith(root)) return res.writeHead(403).end();
     try {
-      const body = await readFile(file);
+      let body = await readFile(file);
+      if (head && file === join(root, 'index.html')) {
+        const html = body.toString('utf8');
+        if (!html.includes('<head>')) throw new Error(`no <head> in ${file}`);
+        body = html.replace('<head>', `<head>${head}`);
+      }
       res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' }).end(body);
     } catch {
       res.writeHead(404).end('not found');

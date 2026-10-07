@@ -98,8 +98,7 @@ test('with no relay that passes, it says so, keeps trying, and recovers', async 
 });
 
 test('the page asks nothing of the network until a transfer is started (§11.2a)', async ({ browser }) => {
-  const context = await browser.newContext();
-  w.contexts.push(context);
+  const context = await w.context(browser);
   const page = await context.newPage();
   const requests: string[] = [];
   const sockets: string[] = [];
@@ -206,8 +205,7 @@ test('Flow B: the Sender that showed the code is told when a second device answe
 });
 
 test('inside another site’s frame the page does nothing', async ({ browser }) => {
-  const context = await browser.newContext();
-  w.contexts.push(context);
+  const context = await w.context(browser);
   const page = await context.newPage();
   // Another origin on this machine: the same server by its other name, on a path it does not serve.
   await page.goto(w.site.url.replace('localhost', '127.0.0.1') + 'outer');
