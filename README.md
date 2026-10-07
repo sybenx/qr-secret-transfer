@@ -5,6 +5,9 @@ code, the other scans it, a person carries five digits between the two screens, 
 only then does the secret travel, sealed, over public relays that neither device runs
 and that cannot read it.
 
+**Live demo: <https://sybenx.github.io/qr-secret-transfer/>** ·
+[Specification](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md)
+
 This repository is two things:
 
 - **A live demo and landing page** (`docs/`, built from `src/demo/`). It moves a short
@@ -38,7 +41,8 @@ On the public internet no setup is needed: the page finds relays itself (see
 
 `docs/` is the whole site. On GitHub: **Settings → Pages → Deploy from a branch →
 `main` / `docs`**. Any static host works; the page uses only relative paths, so it can
-live at a domain root or under a path.
+live at a domain root or under a path. This repository's copy is live at
+<https://sybenx.github.io/qr-secret-transfer/>.
 
 The page is its own bounce page (spec §11.2a): the QR codes it shows point back at
 whatever address it is served from, with every parameter in the fragment, so nothing
