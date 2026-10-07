@@ -195,7 +195,7 @@ test('Flow B: the Sender that showed the code is told when a second device answe
   await stranger.click('#incoming-go');
   const phone = await w.device(browser, [], { url: link });
   await phone.click('#incoming-go');
-  await expect(laptop.locator('#here')).toContainText('Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them.');
+  await expect(laptop.locator('#here')).toContainText('Another device also answered this QR code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them.');
   await typeCode(laptop, await shownCode(phone));
   await laptop.check('#agree');
   await laptop.click('#release-send');

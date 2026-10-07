@@ -20,14 +20,14 @@ test('Flow A: the receiver shows a code, the sender pastes its link', async ({ b
   expect(link).toContain('#v=1&mode=offer&p=qrst-demo-text&npub=npub1');
   expect(link).toContain(`relay=${relay.url}`);
   // §11.2b: never bare, and a code that makes its scanner a Sender is the heavy one.
-  await expect(laptop.locator('figure.qr.qr-offer figcaption')).toHaveText('Scanning this code sends a text from your other device to this one.');
+  await expect(laptop.locator('figure.qr.qr-offer figcaption')).toHaveText('Scanning this QR code sends a text from your other device to this one.');
   await shot(laptop, 'a1-laptop-offer-code');
 
   await pasteAs(phone, 'sender', link);
   await expect(heading(phone)).toHaveText('This is not a login. You are about to give your text to another device.');
   // §9.1: the claimed origin, as a claim; §12.1: this did not come from a scan.
   await expect(phone.locator('#here')).toContainText('says it is a web page at http://localhost');
-  await expect(phone.locator('#here')).toContainText('did not come from scanning a code with this page’s camera');
+  await expect(phone.locator('#here')).toContainText('did not come from scanning a QR code with this page’s camera');
   // The Sender never shows a code of its own, and its send control starts unavailable.
   await expect(phone.locator('#code')).toHaveCount(0);
   await expect(phone.locator('#release-send')).toBeDisabled();
@@ -84,7 +84,7 @@ test('Flow B: the sender shows a code, the receiver opens its link', async ({ br
   const laptop = await w.device(browser, [relay.url]);
   const link = await showAs(laptop, 'sender');
   expect(link).toContain('mode=request');
-  await expect(laptop.locator('figure.qr.qr-request figcaption')).toHaveText('This device is sending a text. Scan this code to receive it.');
+  await expect(laptop.locator('figure.qr.qr-request figcaption')).toHaveText('This device is sending a text. Scan this QR code to receive it.');
   await shot(laptop, 'b1-laptop-request-code');
 
   // The other device's camera app opens the link: this page is its own bounce page (§11.2a).
@@ -124,7 +124,7 @@ test('a wrong code sends nothing; five end the session and block that code (§9.
   for (let attempt = 1; attempt <= 4; attempt++) {
     await typeCode(phone, wrong);
     await phone.click('#release-send');
-    await expect(phone.locator('.mismatch')).toHaveText('That code does not match. Read the five digits on your other device again.');
+    await expect(phone.locator('.mismatch')).toHaveText('Those digits do not match. Read the five digits on your other device again.');
     await expect(phone.locator('#here')).toContainText(`${5 - attempt} of 5 tries left`);
     // the boxes are cleared, never pre-filled
     expect(await phone.locator('.code input.digit').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value).join(''))).toBe('');
@@ -132,7 +132,7 @@ test('a wrong code sends nothing; five end the session and block that code (§9.
   await shot(phone, 'c1-phone-mismatch');
   await typeCode(phone, wrong);
   await phone.click('#release-send');
-  await expect(heading(phone)).toHaveText('The code did not match five times');
+  await expect(heading(phone)).toHaveText('The digits did not match five times');
   // The device that showed the code is not ended by this: it goes back to showing it (§13).
   await expect(heading(laptop)).toHaveText('Scan this with the device that has the secret');
   expect(relay.stored.length).toBeLessThan(6); // HELLO, NONCE, REVEAL, ABORT: no payload
@@ -189,7 +189,7 @@ test('a stranger who answers first gets nothing, and the real device still gets 
   await pasteAs(stranger, 'sender', link, 'planted');
   const strangersCode = await shownCode(laptop);
   await pasteAs(phone, 'sender', link);
-  await expect(laptop.locator('.notice')).toContainText('Another device also responded to this code.');
+  await expect(laptop.locator('.notice')).toContainText('Another device also answered this QR code.');
   await shot(laptop, 'd1-laptop-two-responders');
 
   // The code on screen belongs to the stranger's session. On the real phone it does not match.
@@ -197,10 +197,10 @@ test('a stranger who answers first gets nothing, and the real device still gets 
   await phone.check('#agree');
   await typeCode(phone, strangersCode);
   await phone.click('#release-send');
-  await expect(phone.locator('.mismatch')).toContainText('does not match');
+  await expect(phone.locator('.mismatch')).toContainText('do not match');
 
   await laptop.click('#advance');
-  await expect(laptop.locator('#code')).not.toHaveAttribute('aria-label', `Pairing code ${strangersCode.split('').join(' ')}`);
+  await expect(laptop.locator('#code')).not.toHaveAttribute('aria-label', `Digits ${strangersCode.split('').join(' ')}`);
   const realCode = await shownCode(laptop);
   expect(realCode).not.toBe(strangersCode);
   await typeCode(phone, realCode);

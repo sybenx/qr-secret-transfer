@@ -97,8 +97,8 @@ export const demoText: Profile<string> = {
   },
 
   direction: {
-    offer: 'Scanning this code sends a text from your other device to this one.',
-    request: 'This device is sending a text. Scan this code to receive it.',
+    offer: 'Scanning this QR code sends a text from your other device to this one.',
+    request: 'This device is sending a text. Scan this QR code to receive it.',
   },
 
   release: {

@@ -59,18 +59,18 @@ const ownCheck = (): CodeCheck => store.check() ?? DEFAULT_CHECK;
 
 const CHECK_TEXT: Record<CodeCheck, { name: string; level: string; detail: string }> = {
   none: {
-    name: 'No code',
+    name: 'Confirm only',
     level: 'Low',
     detail:
-      'Nothing to check. Whoever answers the pairing code gets the secret, so anyone who sees the code can race you for it. If a second device answers, nothing is sent. Suits what you can revoke, such as a login.',
+      'No digits to check: you only confirm the send. Whoever answers the QR code gets the secret, so anyone who sees the QR code can race you for it. If a second device answers, nothing is sent. Suits what you can revoke, such as a login.',
   },
   compare: {
-    name: 'Compare a code',
+    name: 'Compare digits',
     level: 'Medium',
     detail: 'Both screens show five digits. You look at both and say whether they match. Suits most things.',
   },
   type: {
-    name: 'Type a code',
+    name: 'Type digits',
     level: 'High',
     detail:
       'The receiving device shows five digits and you type them on the sending one, so they have to be read. Suits what can never be taken back, such as a private key.',
@@ -196,14 +196,14 @@ function startJoining(pairing: Pairing): void {
 }
 
 const URI_PROBLEMS: Record<string, string> = {
-  'not-a-pairing-link': 'That is not a QRST pairing code.',
-  'unknown-version': 'That code is from a version of QRST this page does not speak.',
-  'missing-mode': 'That code does not say which device sends and which receives.',
-  'missing-profile': 'That code does not say what kind of secret it is for.',
-  'bad-key': 'The key in that code is damaged. If you typed or pasted it, a character is wrong.',
-  'no-relays': 'That code names no relay to meet on.',
-  'bad-relay': 'That code names a relay address this page will not use.',
-  'bad-origin': 'That code makes a claim about where it came from that is not a web address.',
+  'not-a-pairing-link': 'That is not a QRST QR code or link.',
+  'unknown-version': 'That QR code or link is from a version of QRST this page does not speak.',
+  'missing-mode': 'That QR code or link does not say which device sends and which receives.',
+  'missing-profile': 'That QR code or link does not say what kind of secret it is for.',
+  'bad-key': 'The key in that QR code or link is damaged. If you typed or pasted it, a character is wrong.',
+  'no-relays': 'That QR code or link names no relay to meet on.',
+  'bad-relay': 'That QR code or link names a relay address this page will not use.',
+  'bad-origin': 'That QR code or link makes a claim about where it came from that is not a web address.',
 };
 
 /**
@@ -220,15 +220,15 @@ function onPairing(text: string, viaCamera: boolean, confirmFirst = false): stri
   // Everything below happens before a throwaway key is generated (§11.2).
   const refusal = Transfer.refusal(deps, params, role);
   if (refusal === 'unknown-profile') {
-    return `That code is for “${params.profile}”, which this page does not handle. It handles “${profile.id}”.`;
+    return `That QR code or link is for “${params.profile}”, which this page does not handle. It handles “${profile.id}”.`;
   }
   if (refusal === 'role-collision') {
     return role === 'sender'
-      ? 'That code is from a device that is also sending. One of the two has to receive: start over on one of them.'
-      : 'That code is from a device that is also receiving. One of the two has to send: start over on one of them.';
+      ? 'That QR code or link is from a device that is also sending. One of the two has to receive: start over on one of them.'
+      : 'That QR code or link is from a device that is also receiving. One of the two has to send: start over on one of them.';
   }
   if (refusal === 'blocked-peer') {
-    return 'A pairing code already failed against that device’s code within the last hour. Ask the other device for a new code.';
+    return 'Digits already failed to match that device’s QR code within the last hour. Ask the other device for a new QR code.';
   }
   const pairing = { params, viaCamera };
   if (confirmFirst) {
@@ -286,7 +286,7 @@ function checkSlider(): HTMLElement {
   return h(
     'div',
     { class: 'level' },
-    h('label', { for: 'check', class: 'label' }, 'How this device checks the other one'),
+    h('label', { for: 'check', class: 'label' }, 'Before sending, check the other device by'),
     input,
     h('div', { class: 'slider-marks', 'aria-hidden': 'true' }, ...marks),
     detail,
@@ -314,7 +314,7 @@ function homeScreen(): Node[] {
       ),
     ),
     checkSlider(),
-    h('p', { class: 'fine' }, 'This is a demo of a draft protocol and the code has not been audited. Use something made up, not a real password.'),
+    h('p', { class: 'fine' }, 'This is a demo of a draft protocol and the software has not been audited. Use something made up, not a real password.'),
   ];
 }
 
@@ -369,20 +369,20 @@ function methodScreen(): Node[] {
       h(
         'button',
         { type: 'button', class: 'choice', id: 'method-show', onClick: startShowing },
-        h('strong', null, 'Show a code here'),
+        h('strong', null, 'Show a QR code here'),
         h('span', null, 'The other device scans this screen. Best when this device has no camera to point.'),
       ),
       h(
         'button',
         { type: 'button', class: 'choice', id: 'method-scan', onClick: () => go({ name: 'scan' }) },
-        h('strong', null, 'Scan a code with this device'),
+        h('strong', null, 'Scan a QR code with this device'),
         h('span', null, 'The other device is already showing one.'),
       ),
       h(
         'button',
         { type: 'button', class: 'choice', id: 'method-paste', onClick: () => go({ name: 'paste' }) },
         h('strong', null, 'Paste a link'),
-        h('span', null, 'Neither device can scan. The other one gives you its code as a link.'),
+        h('span', null, 'Neither device can scan. The other one gives you its QR code as a link.'),
       ),
     ),
     actions(button('Back', reset, 'quiet')),
@@ -398,12 +398,12 @@ const SCAN_PROBLEMS: Record<ScanProblem, string> = {
 
 function scanScreen(): Node[] {
   const video = h('video', { class: 'viewfinder', playsinline: true, muted: true, 'aria-label': 'Camera view' });
-  const status = h('p', { class: 'fine', role: 'status' }, 'Point the camera at the code on the other device.');
+  const status = h('p', { class: 'fine', role: 'status' }, 'Point the camera at the QR code on the other device.');
   scanner = startScanner(
     video,
     (text) => {
       if (!looksLikePairing(text)) {
-        status.textContent = 'That is a QR code, but not a QRST pairing code.';
+        status.textContent = 'That is a QR code, but not one from QRST.';
         return false;
       }
       const problem = onPairing(text, true);
@@ -420,7 +420,7 @@ function scanScreen(): Node[] {
     },
   );
   return [
-    title('Scan the code on the other device'),
+    title('Scan the QR code on the other device'),
     video,
     status,
     actions(button('Paste a link instead', () => go({ name: 'paste' })), button('Back', () => go({ name: 'method' }), 'quiet')),
@@ -447,7 +447,7 @@ function pasteScreen(): Node[] {
     h('label', { for: 'link', class: 'label' }, 'Pairing link'),
     input,
     status,
-    h('p', { class: 'fine' }, 'On the other device, choose “Show a code here”, then “Copy the link”. It holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer it, so pass it only to yourself.'),
+    h('p', { class: 'fine' }, 'On the other device, choose “Show a QR code here”, then “Copy the link”. It holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer it, so pass it only to yourself.'),
     actions(button('Use this link', submit, 'primary', { id: 'paste-go' }), button('Back', () => go({ name: 'method' }), 'quiet')),
   ];
 }
@@ -458,9 +458,9 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
   const becomes = scannerRole(params.mode);
   const check = stricter(ownCheck(), params.check);
   const gate: Record<CodeCheck, string> = {
-    type: 'until you type a code shown on that one',
-    compare: 'until you confirm that both screens show the same code',
-    none: 'until you confirm. No code is checked, because both devices are set to “No code”',
+    type: 'until you type the digits shown on that one',
+    compare: 'until you confirm that both screens show the same digits',
+    none: 'until you confirm. No digits are checked, because both devices are set to “Confirm only”',
   };
   const copied = h('span', { class: 'fine', role: 'status' });
   return [
@@ -469,8 +469,8 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
       'p',
       null,
       becomes === 'sender'
-        ? `It is a QRST pairing code from a device that wants to receive. If you continue, you choose what to send, and nothing leaves this device ${gate[check]}.`
-        : 'It is a QRST pairing code from a device that is sending. If you continue, this device shows you what arrived before keeping anything.',
+        ? `It is a QRST pairing link from a device that wants to receive. If you continue, you choose what to send, and nothing leaves this device ${gate[check]}.`
+        : 'It is a QRST pairing link from a device that is sending. If you continue, this device shows you what arrived before keeping anything.',
     ),
     h(
       'p',
@@ -479,7 +479,7 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
         ? ['The device that made it says it is a web page at ', h('strong', null, params.origin), '. Nothing has verified that.']
         : ['The device that made it presents itself as an app, not a web page. Nothing has verified that.']),
     ),
-    h('p', { class: 'fine' }, 'This link was opened, not scanned with this page’s own camera, so this page has no evidence the code was ever in front of you.'),
+    h('p', { class: 'fine' }, 'This link was opened, not scanned with this page’s own camera, so this page has no evidence the QR code was ever in front of you.'),
     actions(
       button(becomes === 'sender' ? 'Continue as the sender' : 'Continue as the receiver', () => proceedWith(s.pairing), 'primary', { id: 'incoming-go' }),
       button('Copy the link', async () => {
@@ -494,8 +494,8 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
 function interferenceScreen(s: Extract<Screen, { name: 'interference' }>): Node[] {
   return [
     title('Three transfers have failed in the last hour'),
-    h('p', null, 'Each ended with a pairing code that did not match. A mistyped code is the usual reason. Someone interfering with the connection is the other.'),
-    h('p', null, 'If you are sure you typed the codes correctly, stop here and try again later from a different network.'),
+    h('p', null, 'Each ended with digits that did not match. A typo is the usual reason. Someone interfering with the connection is the other.'),
+    h('p', null, 'If you are sure you typed the digits correctly, stop here and try again later from a different network.'),
     actions(button('Stop', reset, 'primary'), button('I understand. Try again', s.proceed, 'plain', { id: 'interference-go' })),
   ];
 }
@@ -552,7 +552,7 @@ function relaysScreen(v: TransferView<string>): Built {
   return {
     nodes: [
       title('Finding a relay'),
-      h('p', null, 'This device is sending itself a sealed message through each relay it knows. A relay goes into the code only if the message comes back.'),
+      h('p', null, 'This device is sending itself a sealed message through each relay it knows. A relay goes into the QR code only if the message comes back.'),
       list,
       note,
       actions(button('Cancel', reset, 'quiet')),
@@ -586,13 +586,13 @@ function qrScreen(v: TransferView<string>): Built {
         qrSvg(uri, 'QRST pairing code'),
         h('figcaption', null, profile.direction[v.mode]),
       ),
-      h('p', { class: 'fine' }, 'This code works for ', left, ' more. ', relayLine),
+      h('p', { class: 'fine' }, 'This QR code works for ', left, ' more. ', relayLine),
       h(
         'p',
         { class: v.session.check === 'none' ? 'claim' : 'fine' },
         v.session.check === 'none'
-          ? 'Set to “No code”: anyone who sees this code can answer it, and no digits will be checked. If two devices answer, nothing moves. A stricter setting on the other device still applies.'
-          : `Check: ${CHECK_TEXT[v.session.check].name.toLowerCase()}, unless the other device is set to something stricter.`,
+          ? 'Set to “Confirm only”: anyone who sees this QR code can answer it, and no digits will be checked. If two devices answer, nothing moves. A stricter setting on the other device still applies.'
+          : `Checking: ${CHECK_TEXT[v.session.check].name.toLowerCase()}, or stricter if the other device asks.`,
       ),
       h(
         'details',
@@ -605,7 +605,7 @@ function qrScreen(v: TransferView<string>): Built {
           }, 'plain', { id: 'copy-link' }),
           copied,
         ),
-        h('p', { class: 'fine' }, 'The link holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer this code, so pass it only to yourself. It stops working when this code does.'),
+        h('p', { class: 'fine' }, 'The link holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer this QR code, so pass it only to yourself. It stops working when the QR code does.'),
       ),
       actions(button('Cancel', reset, 'quiet')),
     ],
@@ -622,8 +622,8 @@ function contactingScreen(v: TransferView<string>): Built {
     note.textContent = view.connected
       ? 'Connected. Waiting for the other device to answer.'
       : Date.now() - since > 3000
-        ? 'Can’t reach the relays this code names yet. Still trying, for as long as the code is valid.'
-        : 'Connecting to the relays the code names.';
+        ? 'Can’t reach the relays this QR code names yet. Still trying, for as long as the QR code is valid.'
+        : 'Connecting to the relays the QR code names.';
   };
   update(v);
   return { nodes: [title('Contacting the other device'), note, list, actions(button('Cancel', reset, 'quiet'))], update };
@@ -636,7 +636,7 @@ let releaseNote = '';
 function shownDigits(code: string, id: string): HTMLElement {
   return h(
     'div',
-    { class: 'code code-shown', role: 'img', 'aria-label': `Pairing code ${code.split('').join(' ')}`, id },
+    { class: 'code code-shown', role: 'img', 'aria-label': `Digits ${code.split('').join(' ')}`, id },
     ...code.split('').map((d) => h('span', { class: 'digit', 'aria-hidden': 'true' }, d)),
   );
 }
@@ -669,16 +669,16 @@ function releaseScreen(v: TransferView<string>): Built {
     if (after.session.phase === 'release' && after.session.attemptsLeft < before) {
       for (const b of boxes) b.value = '';
       refresh();
-      message.textContent = 'That code does not match. Read the five digits on your other device again.';
+      message.textContent = 'Those digits do not match. Read the five digits on your other device again.';
       boxes[0]!.focus();
     }
   }, 'plain', { id: 'release-send', disabled: true });
 
-  const differ = button('The codes are different', () => {
+  const differ = button('The digits are different', () => {
     if (!transfer) return;
     const note = v.showing
-      ? 'Not sent. That code belonged to a device that is not the one in front of you.'
-      : 'Not sent. If the other device says another device also answered, show the next code there and compare again.';
+      ? 'Not sent. Those digits belonged to a device that is not the one in front of you.'
+      : 'Not sent. If the other device says another device also answered, show the next digits there and compare again.';
     // Read by the screen that replaces this one, if the comparison moves to another device.
     releaseNote = note;
     transfer.rejectMatch();
@@ -726,13 +726,13 @@ function releaseScreen(v: TransferView<string>): Built {
 
   // §13, on the device that showed the code. Who else answered is something the user should know.
   const race: Record<CodeCheck, string> = {
-    type: 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. The digits you type decide which device gets the text: only the one whose screen shows them.',
-    compare: 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. Send only if the device in front of you shows exactly these five digits.',
+    type: 'Another device also answered this QR code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. The digits you type decide which device gets the text: only the one whose screen shows them.',
+    compare: 'Another device also answered this QR code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. Send only if the device in front of you shows exactly these five digits.',
     none: '',
   };
   const update = (view: TransferView<string>) => {
     const left = view.session.attemptsLeft;
-    tries.textContent = left < MAX_ATTEMPTS ? `${left} of ${MAX_ATTEMPTS} tries left. After that this code is finished and nothing is sent.` : '';
+    tries.textContent = left < MAX_ATTEMPTS ? `${left} of ${MAX_ATTEMPTS} tries left. After that this QR code is finished and nothing is sent.` : '';
     const several = view.showing && (view.session.multipleResponders || view.session.dropped > 0);
     others.textContent = several ? race[check] : '';
     others.hidden = !several || !race[check];
@@ -742,7 +742,7 @@ function releaseScreen(v: TransferView<string>): Built {
   const how: Child[] =
     check === 'type'
       ? [
-          h('p', { class: 'label', id: 'code-label' }, 'Pairing code shown on your other device'),
+          h('p', { class: 'label', id: 'code-label' }, 'Digits shown on your other device'),
           h('div', { class: 'code', role: 'group', 'aria-labelledby': 'code-label' }, ...boxes),
         ]
       : check === 'compare'
@@ -754,7 +754,7 @@ function releaseScreen(v: TransferView<string>): Built {
             h(
               'p',
               { class: 'claim', id: 'no-code' },
-              'No code is checked: both devices are set to “No code”. The text goes to whichever device answered the pairing code. If a second device answers before you send, nothing is sent.',
+              'No digits are checked: both devices are set to “Confirm only”. The text goes to whichever device answered the QR code. If a second device answers before you send, nothing is sent.',
             ),
           ];
   const consent: Record<CodeCheck, string> = {
@@ -768,7 +768,7 @@ function releaseScreen(v: TransferView<string>): Built {
       title(profile.release.heading),
       h('p', null, profile.release.body),
       h('p', { class: 'claim' }, ...claim),
-      !v.viaCamera && h('p', { class: 'claim' }, 'This request did not come from scanning a code with this page’s camera. It arrived as a link.'),
+      !v.viaCamera && h('p', { class: 'claim' }, 'This request did not come from scanning a QR code with this page’s camera. It arrived as a link.'),
       others,
       ...how,
       message,
@@ -798,9 +798,9 @@ function codeScreen(v: TransferView<string>): Built {
     replace(
       notice,
       // §13: soft, non-blocking, on the device that showed the code.
-      h('p', null, 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them.'),
+      h('p', null, 'Another device also answered this QR code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them.'),
       view.showing && view.session.canAdvance
-        ? button('The other device rejected this code. Show the next one', () => transfer?.advance(), 'plain', { id: 'advance' })
+        ? button('The other device rejected these digits. Show the next ones', () => transfer?.advance(), 'plain', { id: 'advance' })
         : false,
     );
   };
@@ -809,9 +809,9 @@ function codeScreen(v: TransferView<string>): Built {
     return {
       nodes: [
         title('Waiting for the other device to send'),
-        h('p', null, 'Both devices are set to “No code”, so there are no digits to check. The other device is asking whether to send.'),
+        h('p', null, 'Both devices are set to “Confirm only”, so there are no digits to check. The other device is asking whether to send.'),
         notice,
-        h('p', { class: 'fine' }, 'This code works for ', left, ' more.'),
+        h('p', { class: 'fine' }, 'This QR code works for ', left, ' more.'),
         actions(button('Cancel', reset, 'quiet')),
       ],
       update,
@@ -819,7 +819,7 @@ function codeScreen(v: TransferView<string>): Built {
   }
   return {
     nodes: [
-      title(check === 'compare' ? 'Compare this code with your other device' : 'Type this code on your other device'),
+      title(check === 'compare' ? 'Compare these digits with your other device' : 'Type these digits on your other device'),
       // Shown here and read there, never the other way round (§9.2).
       shownDigits(code, 'code'),
       h(
@@ -827,10 +827,10 @@ function codeScreen(v: TransferView<string>): Built {
         null,
         check === 'compare'
           ? 'Your other device shows five digits too. If they are the same as these, confirm there. If they differ, say so there: some other device answered.'
-          : 'It is a pairing code for this one transfer. It is not a PIN, and nothing else will ever ask you for it.',
+          : 'These digits are for this one transfer. They are not a PIN, and nothing else will ever ask you for them.',
       ),
       notice,
-      h('p', { class: 'fine' }, 'This code works for ', left, ' more.'),
+      h('p', { class: 'fine' }, 'This QR code works for ', left, ' more.'),
       actions(button('Cancel', reset, 'quiet')),
     ],
     update,
@@ -842,7 +842,7 @@ function acceptScreen(v: TransferView<string>): Built {
     nodes: [
       title(profile.accept.heading),
       h('p', { class: 'rendering', id: 'rendering' }, v.session.rendering ?? ''),
-      h('p', null, v.session.check === 'none' ? 'Keep it if this is what you just sent.' : 'Keep it if this is what you just sent and the code matched on your other device.'),
+      h('p', null, v.session.check === 'none' ? 'Keep it if this is what you just sent.' : 'Keep it if this is what you just sent and the digits matched on your other device.'),
       actions(
         button(profile.accept.confirm, () => transfer?.accept(), 'primary', { id: 'accept-keep' }),
         button(profile.accept.decline, () => transfer?.decline(), 'plain', { id: 'accept-discard' }),
@@ -858,7 +858,7 @@ function sentScreen(v: TransferView<string>): Built {
     left.textContent = view.session.ackDeadline ? clock(view.session.ackDeadline) : '';
     // With no code, a device that answers after the text has gone may have been racing for it.
     const raced = view.session.check === 'none' && view.session.multipleResponders;
-    late.textContent = raced ? 'Another device also answered the pairing code after the text was sent. If the device in front of you does not show what you sent, someone else may have it.' : '';
+    late.textContent = raced ? 'Another device also answered the QR code after the text was sent. If the device in front of you does not show what you sent, someone else may have it.' : '';
     late.hidden = !raced;
   };
   update(v);
@@ -918,15 +918,15 @@ function endedScreen(v: TransferView<string>): Node[] {
         : ['The other device cancelled', 'Nothing was sent.']
       : ['The other device cancelled', 'It stopped, or it chose a different device. Nothing arrived here.'],
     'attempts-exhausted': [
-      'The code did not match five times',
-      'Nothing was sent, and that code is finished. If you did not mistype, someone may be interfering: stop and try again from a different network. To try again at all, the receiving device has to show a new code.',
+      'The digits did not match five times',
+      'Nothing was sent, and that QR code is finished. If you did not mistype, someone may be interfering: stop and try again from a different network. To try again at all, the receiving device has to show a new QR code.',
     ],
-    expired: ['The code expired', 'A pairing code works for ten minutes. Nothing was sent or kept.'],
+    expired: ['The QR code expired', 'A QR code works for ten minutes. Nothing was sent or kept.'],
     'bad-payload': ['That was not a text', 'What arrived was not something this page can use, so it was discarded. The other device has been told.'],
-    'blocked-peer': ['That code has already failed', 'Ask the other device for a new code.'],
+    'blocked-peer': ['That QR code has already failed', 'Ask the other device for a new QR code.'],
     'second-responder': [
-      'Two devices answered the pairing code',
-      'With no code to check, there is no telling which of them is yours, so nothing was sent or kept. Someone else may have seen the pairing code. To try again, start over on both devices, ideally with a code check.',
+      'Two devices answered the QR code',
+      'With no digits to check, there is no telling which of them is yours, so nothing was sent or kept. Someone else may have seen the QR code. To try again, start over on both devices, ideally with Compare digits or Type digits.',
     ],
   };
   const [heading, detail] = text[outcome];
@@ -977,17 +977,17 @@ function otherDevice(v: TransferView<string> | undefined): Node[] {
     return [
       p('You need two devices. Open this page on the other one:'),
       h('figure', { class: 'here-qr' }, qrSvg(deps.baseUrl, 'Address of this page'), h('figcaption', null, pageAddress)),
-      p('This code is only this page’s address. Pairing codes come later and say what they do.'),
+      p('This QR code is only this page’s address. The QR codes for a transfer come later and say what they do.'),
     ];
   }
   if (screen.name === 'compose') return [p('Open this page on the receiving device and choose ', h('strong', null, 'Receive a secret'), '.')];
   if (screen.name === 'method') {
     return role === 'sender'
-      ? [p('On the receiving device, choose ', h('strong', null, 'Receive a secret'), '. One of the two shows a code and the other scans it. Either way round works.')]
-      : [p('On the sending device, choose ', h('strong', null, 'Send a secret'), ' and type it in. One of the two shows a code and the other scans it. Either way round works.')];
+      ? [p('On the receiving device, choose ', h('strong', null, 'Receive a secret'), '. One of the two shows a QR code and the other scans it. Either way round works.')]
+      : [p('On the sending device, choose ', h('strong', null, 'Send a secret'), ' and type it in. One of the two shows a QR code and the other scans it. Either way round works.')];
   }
   if (screen.name === 'scan' || screen.name === 'paste') {
-    return [p('On the other device, choose ', h('strong', null, 'Show a code here'), '.', screen.name === 'paste' ? ' Then open “Can’t scan it?” and copy the link.' : '')];
+    return [p('On the other device, choose ', h('strong', null, 'Show a QR code here'), '.', screen.name === 'paste' ? ' Then open “Can’t scan it?” and copy the link.' : '')];
   }
   if (screen.name === 'incoming') return [p('The other device made this link and is waiting for an answer.')];
   if (!v || screen.name !== 'transfer') return [p('Nothing to do on the other device yet.')];
@@ -1000,10 +1000,10 @@ function otherDevice(v: TransferView<string> | undefined): Node[] {
   }
   switch (v.session.phase) {
     case 'waiting':
-      if (!v.showing) return [p('It is showing the code you just read. Leave it open.')];
+      if (!v.showing) return [p('It is showing the QR code you just read. Leave it open.')];
       return v.role === 'receiver'
-        ? [p('Choose ', h('strong', null, 'Send a secret'), ', type it in, then ', h('strong', null, 'Scan a code with this device'), ' and point it at this screen.')]
-        : [p('Choose ', h('strong', null, 'Receive a secret'), ', then ', h('strong', null, 'Scan a code with this device'), ' and point it at this screen.')];
+        ? [p('Choose ', h('strong', null, 'Send a secret'), ', type it in, then ', h('strong', null, 'Scan a QR code with this device'), ' and point it at this screen.')]
+        : [p('Choose ', h('strong', null, 'Receive a secret'), ', then ', h('strong', null, 'Scan a QR code with this device'), ' and point it at this screen.')];
     case 'release':
       return {
         type: [p('It is showing five digits. Read them from its screen and type them here.')],
@@ -1052,7 +1052,7 @@ function deviceDrawer(): void {
   const sourceLabel: Record<string, string> = {
     configured: 'added here',
     remembered: 'passed here before',
-    learned: 'named by a code you scanned',
+    learned: 'named by a QR code you scanned',
     discovered: 'reported by a relay monitor',
     seed: 'a starting point shipped with this page',
   };
@@ -1087,13 +1087,13 @@ function deviceDrawer(): void {
       'li',
       null,
       `${when(r.ts)}: ${r.role === 'sender' ? 'sent' : 'received'} (${r.outcome}), ${r.check ? `${CHECK_TEXT[r.check].name.toLowerCase()}, ` : ''}other device ${shortKey(r.peer)}, via ${r.relays.map(host).join(', ')}`,
-      r.multi ? '. More than one device responded to the code.' : '.',
+      r.multi ? '. More than one device answered the QR code.' : '.',
     ),
   );
   replace(
     drawer,
     h('h3', null, 'Relays this device knows'),
-    h('p', { class: 'fine' }, 'No relay is trusted or required. Before a code is shown, each candidate has to carry a sealed test message back to this device, and only those that do are named in the code.'),
+    h('p', { class: 'fine' }, 'No relay is trusted or required. Before a QR code is shown, each candidate has to carry a sealed test message back to this device, and only those that do are named in the QR code.'),
     rows.length > 0 ? h('ul', { class: 'relays relays-known' }, ...rows) : h('p', { class: 'fine' }, 'None. Add one below.'),
     h(
       'div',

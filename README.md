@@ -78,14 +78,14 @@ The wire protocol of `QR_SECRET_TRANSFER.md` 1.4-draft:
 
 It goes beyond the specification in one place, on purpose: **three levels of check**
 instead of one. The 1.4-draft allows only typing the code (§9.2). This implementation
-also offers comparing it and no code at all, chosen on each device with a slider; the
+also offers comparing the digits and confirming without any, chosen on each device with a slider; the
 stricter of the two devices' settings applies.
 
 | Level | Sender | Receiver | For |
 |---|---|---|---|
-| Type a code | types the digits shown on the Receiver | shows five digits | what cannot be taken back |
-| Compare a code (default) | shows five digits, the user confirms they match | shows five digits | most things |
-| No code | consent only; a second responder ends the session | shows nothing | what can be revoked |
+| Type digits (high) | types the digits shown on the Receiver | shows five digits | what cannot be taken back |
+| Compare digits (medium, default) | shows five digits, the user confirms they match | shows five digits | most things |
+| Confirm only (low) | consent only; a second responder ends the session | shows nothing | what can be revoked |
 
 Every pairing link also carries a one-time token that a responder must echo inside its
 first sealed message, so that only a device that saw the code can answer it. See
