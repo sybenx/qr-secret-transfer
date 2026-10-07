@@ -32,10 +32,10 @@ export const ACK_WAIT_SECONDS = 60;
 /** Code-entry attempts per session (§9.2). */
 export const MAX_ATTEMPTS = 5;
 
-/** Candidates a Receiver that showed the QR holds at once (§13). */
+/** Responders a Receiver that showed the QR answers over the whole session (§13). */
 export const MAX_HELD = 3;
 
-/** Requests a Sender that showed the QR queues at once (§8). */
+/** Responders a Sender that showed the QR answers over the whole session (§8, §13). */
 export const MAX_PENDING = 5;
 
 /** Default maximum payload, in bytes of binary (§4, P1). */
@@ -54,8 +54,7 @@ export const PROFILE_ID = /^[a-z0-9-]{1,24}$/;
 
 /**
  * How the Sender makes sure it is releasing to the device in front of the user,
- * weakest first. The 1.4-draft knows only `type` (§9.2); the other two are this
- * implementation's proposal (SPEC_NOTES.md, "Three levels of check").
+ * weakest first (spec §9.2).
  *
  *   none     No code. Release on consent alone: whoever answers the code gets it,
  *            and a second device answering ends the session.

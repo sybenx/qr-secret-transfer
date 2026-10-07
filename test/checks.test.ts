@@ -2,7 +2,7 @@
 // has a setting, the stricter applies, and a second responder is never hidden.
 
 import { describe, expect, it } from 'vitest';
-import { type CodeCheck, KINDS, MAX_ATTEMPTS, buildRumor, demoText } from '../src/core/index.ts';
+import { type CodeCheck, KINDS, MAX_ATTEMPTS, type Profile, buildRumor, demoText } from '../src/core/index.ts';
 import { Net, committed, outcomeOf, records } from './net.ts';
 
 const SECRET = 'sk-live-4f9a0c1d2e3b';
@@ -234,5 +234,74 @@ describe('no code', () => {
     expect(sender.session.confirmMatch()).toEqual([]);
     expect(sender.session.rejectMatch()).toEqual([]);
     expect(receiver.session.view().phase).toBe('code');
+  });
+});
+
+describe('found in review of 1.5', () => {
+  it('a second responder ends the session only if a pairing was agreed with no code', () => {
+    // The showing Sender is set to none, but its first responder asked for compare.
+    const net = new Net<string>(demoText);
+    const sender = net.add('sender', 'sender', true, { payload: SECRET, check: 'none' });
+    const receiver = net.add('receiver', 'receiver', false, { peerPub: sender.pub, check: 'compare' });
+    const stranger = net.add('stranger', 'receiver', false, { peerPub: sender.pub, check: 'compare' });
+    net.run(receiver, receiver.session.start());
+    net.run(stranger, stranger.session.start());
+    expect(sender.session.view().phase).toBe('release');
+    expect(sender.session.view().multipleResponders).toBe(true);
+    expect(sender.session.view().compare).toBe(receiver.session.view().code);
+    net.run(sender, sender.session.confirmMatch());
+    net.run(receiver, receiver.session.accept());
+    expect(committed(receiver)).toEqual([SECRET]);
+  });
+
+  it('Flow A: declining a planted payload discards that candidate, and the real Sender still gets through', () => {
+    const net = new Net<string>(demoText);
+    const receiver = net.add('receiver', 'receiver', true, { check: 'type' });
+    const stranger = net.add('stranger', 'sender', false, { peerPub: receiver.pub, payload: 'planted', check: 'type' });
+    net.run(stranger, stranger.session.start());
+    net.run(stranger, stranger.session.enterCode(receiver.session.view().code!));
+    expect(receiver.session.view().phase).toBe('accept');
+    net.run(receiver, receiver.session.decline());
+    expect(receiver.session.view().phase).toBe('waiting');
+    expect(outcomeOf(stranger)).toBe('peer-aborted');
+
+    const sender = net.add('sender', 'sender', false, { peerPub: receiver.pub, payload: SECRET, check: 'type' });
+    net.run(sender, sender.session.start());
+    net.run(sender, sender.session.enterCode(receiver.session.view().code!));
+    net.run(receiver, receiver.session.accept());
+    expect(committed(receiver)).toEqual([SECRET]);
+    expect(records(receiver)[0]!.multi).toBe(true);
+  });
+
+  it('a device that answers once a candidate is chosen is still reported', () => {
+    const { net, receiver, sender } = flowA('type', 'type');
+    net.run(sender, sender.session.enterCode(receiver.session.view().code!));
+    expect(receiver.session.view().phase).toBe('accept');
+    const late = net.add('late', 'sender', false, { peerPub: receiver.pub, payload: 'x', check: 'type' });
+    net.run(late, late.session.start());
+    expect(receiver.session.view().phase).toBe('accept');
+    expect(receiver.session.view().multipleResponders).toBe(true);
+  });
+
+  it('the Sender records the transfer the moment it releases, and the end replaces that record', () => {
+    const { net, receiver, sender } = flowB('compare', 'type');
+    net.run(sender, sender.session.enterCode(receiver.session.view().code!));
+    const atRelease = sender.effects.filter((e) => e.t === 'record');
+    expect(atRelease).toHaveLength(1);
+    expect(records(sender)[0]).toMatchObject({ outcome: 'sent-unconfirmed', check: 'type' });
+    net.run(receiver, receiver.session.accept());
+    expect(records(sender)).toHaveLength(1);
+    expect(records(sender)[0]).toMatchObject({ outcome: 'delivered', check: 'type' });
+  });
+
+  it('a profile that states no minimum never goes below compare', () => {
+    const { minCheck: _, ...strict } = demoText;
+    const net = new Net<string>(strict as Profile<string>);
+    const receiver = net.add('receiver', 'receiver', true, { check: 'none' });
+    const sender = net.add('sender', 'sender', false, { peerPub: receiver.pub, payload: SECRET, check: 'none' });
+    net.run(sender, sender.session.start());
+    expect(sender.session.view().check).toBe('compare');
+    expect(receiver.session.view().check).toBe('compare');
+    expect(sender.session.release()).toEqual([]);
   });
 });

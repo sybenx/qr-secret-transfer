@@ -61,7 +61,7 @@ Before publishing, set a canonical URL and the three GitHub links in
 
 ## What it implements
 
-The wire protocol of `QR_SECRET_TRANSFER.md` 1.4-draft:
+The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md) 1.5-draft:
 
 - the commit-then-reveal exchange and five-digit code of §6, reproducing the
   specification's own vectors (`vectors/qrst-sas.json`);
@@ -71,15 +71,15 @@ The wire protocol of `QR_SECRET_TRANSFER.md` 1.4-draft:
   `nostr-tools` in both directions;
 - the pairing link (§11.2), the bounce page (§11.2a), and how a code is presented
   (§11.2b);
-- the release prompt, the code entry and the restart throttle (§9), as far as code can
-  enforce them, and the acceptance confirmation;
+- the release prompt, the three levels of checking the code, and the restart
+  throttle (§9), as far as code can enforce them, and the acceptance confirmation;
+- the one-time token in every pairing link (§11.2, §11.4);
+- relay selection by loopback test (§11.3a): see [Relays](#relays);
 - multiple responders (§13) and the local transfer record (§14);
 - relay subscription, the session outbox, and NIP-42 with the burner (§11.5).
 
-It goes beyond the specification in one place, on purpose: **three levels of check**
-instead of one. The 1.4-draft allows only typing the code (§9.2). This implementation
-also offers comparing the digits and confirming without any, chosen on each device with a slider; the
-stricter of the two devices' settings applies.
+The three levels of §9.2 are chosen on each device with a slider, and the stricter of
+the two devices' settings applies:
 
 | Level | Sender | Receiver | For |
 |---|---|---|---|
@@ -87,20 +87,13 @@ stricter of the two devices' settings applies.
 | Compare digits (medium, default) | shows five digits, the user confirms they match | shows five digits | most things |
 | Confirm only (low) | consent only; a second responder ends the session | shows nothing | what can be revoked |
 
-Every pairing link also carries a one-time token that a responder must echo inside its
-first sealed message, so that only a device that saw the code can answer it. See
-`SPEC_NOTES.md`, "Three levels of check", for the reasoning and the exact rules.
-
-It also implements the relay selection drafted as §11.3a of the unpublished
-standalone 1.5-draft, because the demo has to choose relays somehow and that draft
-is the stated intent: see [Relays](#relays).
-
 Not implemented: the offline tier (§10), the local network path (§11.7, which a
-browser cannot do), the light flow (§12.3), and reading the code by camera (§9.2
-"capture").
+browser cannot do), the `frost://` carrier (§12.3), and reading the code by camera
+(§9.2 "capture").
 
-`SPEC_NOTES.md` lists every place the specification could be read two ways while
-writing this, and which reading was taken.
+1.5-draft was written from this implementation: every place 1.4 could be read two
+ways, or was wrong, is recorded under "Resolved" in the specification's
+[`SPEC_ISSUES.md`]({ISS}). New ones go there too.
 
 ## Relays
 
@@ -170,9 +163,9 @@ npm run check        # typecheck, unit and integration tests, build, browser tes
 
 Two independent reviews of the code against the specification were run before this
 was handed over, one of the core and one of the page. They found one serious fault
-(the pairing code could be ground: see the first entry of `SPEC_NOTES.md`) and about
-twenty smaller ones. All are fixed and have regression tests, except those listed in
-`SPEC_NOTES.md` as open readings.
+(the pairing code could be ground: see "The contacting party gets more than one code
+per session" in [`SPEC_ISSUES.md`](https://github.com/sybenx/nostr-key-management/blob/main/SPEC_ISSUES.md)) and about twenty smaller ones. All are
+fixed and have regression tests.
 
 ### What has not been tested
 

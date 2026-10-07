@@ -3,6 +3,7 @@
 
 import { base64 } from '@scure/base';
 import { utf8Decode, utf8Encode } from './bytes.ts';
+import type { CodeCheck } from './constants.ts';
 import { DEFAULT_MAX_PAYLOAD, PROFILE_ID } from './constants.ts';
 
 export type Check<T> = { ok: true; value: T } | { ok: false; reason: string };
@@ -24,6 +25,8 @@ export interface Profile<T> {
   readonly maxPayloadBytes: number;
   /** Whether a released secret can be withdrawn afterwards. Drives the wording of §9.1. */
   readonly revocable: boolean;
+  /** The lowest check level this profile permits (§5, item 7). Unstated means `compare`. */
+  readonly minCheck?: CodeCheck;
   /** Value to the content of the PAYLOAD message. Throws if the value does not fit. */
   encode(value: T): string;
   /** P4: does this content belong to this profile? */
@@ -59,6 +62,9 @@ export const demoText: Profile<string> = {
   id: 'qrst-demo-text',
   maxPayloadBytes: DEFAULT_MAX_PAYLOAD,
   revocable: false,
+  // The spec advises against `none` for what cannot be revoked. This profile carries
+  // made-up demo text and exists to show every level, so it permits all three.
+  minCheck: 'none',
 
   encode(value) {
     const bytes = utf8Encode(value);

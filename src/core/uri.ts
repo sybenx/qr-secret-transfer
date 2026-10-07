@@ -5,7 +5,7 @@
 //                         &check=<none|compare|type>&token=<32 hex>
 //                         [&relay=<wss url>]*[&origin=<claimed-origin>]
 //
-// `check` and `token` are not in the 1.4-draft (see SPEC_NOTES.md).
+// `check` and `token` are new in 1.5-draft.
 
 import { type CodeCheck, MAX_RELAYS, PROFILE_ID, TOKEN_BYTES, VERSION, isCodeCheck } from './constants.ts';
 import { npubDecode, npubEncode } from './event.ts';

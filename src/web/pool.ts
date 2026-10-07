@@ -297,8 +297,11 @@ export class Pool {
     if (this.closed || typeof event !== 'object' || event === null) return;
     const id = (event as { id?: unknown }).id;
     if (typeof id !== 'string') return;
-    this.waiters.get(`${link.url} ${id}`)?.(true);
-    // A probe is recognised by its id and discarded before any other processing (§11.3a).
+    // A loopback probe passes only if what came back is the event that went out: an id
+    // alone is something any relay can repeat (§11.5).
+    const waiter = this.waiters.get(`${link.url} ${id}`);
+    if (waiter && verify(event)) waiter(true);
+    // A probe is recognised by its id and never handed to the session (§11.3a).
     if (this.ignored.has(id)) return;
     // Dedupe by event id: several relays deliver the same wrap (§11.5). Only a wrap
     // whose id and signature hold is remembered, or one relay could send junk under a

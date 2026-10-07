@@ -282,7 +282,9 @@ export class Store {
 
   // ---- §14 transfer log ---------------------------------------------------------------
 
+  /** §14. A record for the same peer burner and role replaces the earlier one: a session writes at release, then at its end. */
   addRecord(record: LoggedTransfer): void {
+    this.data.log = this.data.log.filter((r) => !(r.peer === record.peer && r.role === record.role));
     this.data.log.unshift(record);
     this.data.log.length = Math.min(this.data.log.length, MAX_LOG);
     this.save();

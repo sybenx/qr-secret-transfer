@@ -212,6 +212,8 @@ export class Session<T> {
   private peak: CodeCheck;
   /** Sender that showed the code: candidates the user said did not match. */
   private readonly rejected = new Set<string>();
+  /** Showing device: a responder was agreed at `none`, so no second one can be told apart from it. */
+  private noneAgreed = false;
   private payloadContent: string | undefined;
 
   private phase: Phase = 'waiting';
@@ -222,7 +224,7 @@ export class Session<T> {
    * Every burner that has contacted this session, whether or not it is still held.
    * A burner gets one nonce exchange, and a slot is never handed out twice: a party
    * that learns our nonce before revealing its own must not be able to walk away and
-   * ask again until it likes the code (§6: one attempt per session).
+   * ask again until it likes the code (§6, §13).
    */
   private readonly contacted = new Set<string>();
   /** Sender: burners a code entry failed against, kept even if the peer is later dropped (§9.3). */
@@ -250,8 +252,9 @@ export class Session<T> {
     this.pub = publicKey(options.secretKey);
     this.startedAt = options.env.now();
     this.isBlocked = options.isBlocked ?? (() => false);
-    this.own = options.check ?? 'type';
-    if (!isCodeCheck(this.own)) throw new Error('session: unknown check');
+    if (options.check !== undefined && !isCodeCheck(options.check)) throw new Error('session: unknown check');
+    // Never below what the profile permits (§5, item 7).
+    this.own = stricter(options.check ?? 'type', this.profile.minCheck ?? 'compare');
 
     if (this.showing) {
       if (options.peerPub !== undefined) throw new Error('session: the showing device has no peer yet');
@@ -435,8 +438,17 @@ export class Session<T> {
     if (this.role === 'sender' && this.isBlocked(r.pubkey)) {
       return [{ t: 'trace', text: `ignored ${short(r.pubkey)}: a code already failed against it` }];
     }
-    if (this.own === 'none' && this.contacted.size >= 1) return this.secondResponder(r.pubkey);
-    if (this.phase !== 'waiting' && this.phase !== 'release' && this.phase !== 'code') return [];
+    const announced = firstTag(r, 'check');
+    // A responder that says nothing about the check gets the strictest.
+    const check = stricter(this.own, isCodeCheck(announced) ? announced : 'type');
+    // Two responders can be told apart only by their codes. If either was agreed with no
+    // code, nothing can tell them apart (§13).
+    if (this.contacted.size >= 1 && (check === 'none' || this.noneAgreed)) return this.secondResponder(r.pubkey);
+    if (this.phase !== 'waiting' && this.phase !== 'release' && this.phase !== 'code') {
+      // Too late to take part, but someone else saw the code, and the user should know (§13).
+      this.multipleResponders = true;
+      return [{ t: 'trace', text: `another device, ${short(r.pubkey)}, answered after this one was chosen` }];
+    }
     if (this.contacted.size >= 1) this.multipleResponders = true;
     // The cap is on contacts over the whole session, not on how many are held right now.
     const cap = this.role === 'receiver' ? MAX_HELD : MAX_PENDING;
@@ -445,9 +457,7 @@ export class Session<T> {
       return [{ t: 'trace', text: `turned away ${short(r.pubkey)}: this code has already been answered ${cap} times` }];
     }
     this.contacted.add(r.pubkey);
-    const announced = firstTag(r, 'check');
-    // A responder that says nothing about the check gets the strictest.
-    const check = stricter(this.own, isCodeCheck(announced) ? announced : 'type');
+    if (check === 'none') this.noneAgreed = true;
     this.peak = stricter(this.peak, check);
     const ownNonce = bytesToHex(this.env.random(32));
     this.peers.set(r.pubkey, {
@@ -466,7 +476,7 @@ export class Session<T> {
   }
 
   /**
-   * Showing device whose own setting is `none`: a second device answered. Without a
+   * Showing device, where a responder was agreed at `none`: a second device answered. Without a
    * code nothing can tell the two apart, so nothing moves and both are told why. If
    * the text has already gone, it is too late to stop; the user is still told.
    */
@@ -686,6 +696,9 @@ export class Session<T> {
     this.payloadContent = undefined;
     this.ackDeadline = this.env.now() + ACK_WAIT_SECONDS;
     this.phase = 'sent';
+    // §14: the record is owed from the moment the secret leaves, in case nothing else
+    // happens here. The session's end replaces it with the outcome.
+    effects.push(this.record('sent-unconfirmed', target.pub, target.sas!));
     return effects;
   }
 
@@ -717,6 +730,15 @@ export class Session<T> {
 
   /** The user refused: a Sender declining to release, or a Receiver discarding what arrived. */
   decline(): Effect<T>[] {
+    // A Receiver that showed the code discards only what is on screen. It may have come
+    // from someone who photographed the code, and one stranger must not be able to end
+    // the session by being declined (§13).
+    if (this.role === 'receiver' && this.showing && this.phase === 'accept' && this.active) {
+      const gone = this.active;
+      this.peers.delete(gone);
+      this.activateNext();
+      return [{ t: 'trace', text: `discarded what ${short(gone)} sent; ${this.active ? 'showing the next code' : 'waiting'}` }, this.abort(gone)];
+    }
     return this.leave('declined');
   }
 
@@ -768,19 +790,7 @@ export class Session<T> {
     const completed =
       done ?? (this.releasedTo && this.releasedSas ? { peer: this.releasedTo, sas: this.releasedSas } : undefined);
     if (completed) {
-      effects.push({
-        t: 'record',
-        record: {
-          ts: this.env.now(),
-          profile: this.profile.id,
-          role: this.role,
-          outcome,
-          sas: completed.sas,
-          peer: completed.peer,
-          multi: this.multipleResponders,
-          check: this.recordedCheck(completed.peer),
-        },
-      });
+      effects.push(this.record(outcome, completed.peer, completed.sas));
     } else if (this.role === 'sender' && this.failedPeers.size > 0) {
       effects.push({ t: 'failed-peers', pubs: [...this.failedPeers] });
     }
@@ -800,8 +810,26 @@ export class Session<T> {
     return effects;
   }
 
+  /** §14. A later record for the same peer replaces an earlier one. */
+  private record(outcome: Outcome, peer: string, sas: string): Effect<T> {
+    return {
+      t: 'record',
+      record: {
+        ts: this.env.now(),
+        profile: this.profile.id,
+        role: this.role,
+        outcome,
+        sas,
+        peer,
+        multi: this.multipleResponders,
+        check: this.recordedCheck(peer),
+      },
+    };
+  }
+
+  /** The level that was actually applied: a Sender that showed the code applies the strictest it agreed. */
   private recordedCheck(pub: string): CodeCheck {
-    return this.showing ? (this.peers.get(pub)?.check ?? this.peak) : this.peak;
+    return this.role === 'receiver' && this.showing ? (this.peers.get(pub)?.check ?? this.peak) : this.peak;
   }
 
   private assertLive(): void {

@@ -99,4 +99,8 @@ export class Net<T> {
 
 export const outcomeOf = <T>(n: Node<T>) => n.session.view().outcome;
 export const committed = <T>(n: Node<T>) => n.effects.filter((e) => e.t === 'commit').map((e) => (e as { value: T }).value);
-export const records = <T>(n: Node<T>) => n.effects.filter((e) => e.t === 'record').map((e) => (e as Extract<Effect<T>, { t: 'record' }>).record);
+/** The §14 records as a store keeps them: the last one written for each peer. */
+export const records = <T>(n: Node<T>) => {
+  const all = n.effects.filter((e) => e.t === 'record').map((e) => (e as Extract<Effect<T>, { t: 'record' }>).record);
+  return all.filter((r, i) => !all.slice(i + 1).some((later) => later.peer === r.peer));
+};

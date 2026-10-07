@@ -579,6 +579,7 @@ function qrScreen(v: TransferView<string>): Built {
   return {
     nodes: [
       title(v.role === 'receiver' ? 'Scan this with the device that has the secret' : 'Scan this with the device that should receive it'),
+      discardNote && h('p', { class: 'claim', id: 'discarded' }, discardNote),
       // §11.2b: a QR is never shown bare, and a code that makes its scanner a Sender carries more weight.
       h(
         'figure',
@@ -631,6 +632,8 @@ function contactingScreen(v: TransferView<string>): Built {
 
 /** Shown on the next release screen: what happened to the last comparison. */
 let releaseNote = '';
+/** Shown on the next QR or digits screen: what happened to what was discarded. */
+let discardNote = '';
 
 /** The five digits, shown. On the Receiver to be read; on a Sender that compares, to be compared. */
 function shownDigits(code: string, id: string): HTMLElement {
@@ -820,6 +823,7 @@ function codeScreen(v: TransferView<string>): Built {
   return {
     nodes: [
       title(check === 'compare' ? 'Compare these digits with your other device' : 'Type these digits on your other device'),
+      discardNote && h('p', { class: 'claim', id: 'discarded' }, discardNote),
       // Shown here and read there, never the other way round (§9.2).
       shownDigits(code, 'code'),
       h(
@@ -845,7 +849,12 @@ function acceptScreen(v: TransferView<string>): Built {
       h('p', null, v.session.check === 'none' ? 'Keep it if this is what you just sent.' : 'Keep it if this is what you just sent and the digits matched on your other device.'),
       actions(
         button(profile.accept.confirm, () => transfer?.accept(), 'primary', { id: 'accept-keep' }),
-        button(profile.accept.decline, () => transfer?.decline(), 'plain', { id: 'accept-discard' }),
+        button(profile.accept.decline, () => {
+          // A device that showed the QR code discards only this and keeps waiting (§13).
+          if (v.showing) discardNote = 'Discarded. Nothing was kept, and the device that sent it has been told. This QR code still works for your own device.';
+          transfer?.decline();
+          discardNote = '';
+        }, 'plain', { id: 'accept-discard' }),
       ),
     ],
   };

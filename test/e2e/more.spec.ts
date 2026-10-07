@@ -154,7 +154,9 @@ test('the Receiver discarding what arrived keeps nothing', async ({ browser }) =
   await phone.check('#agree');
   await phone.click('#release-send');
   await laptop.click('#accept-discard');
-  await expect(heading(laptop)).toHaveText('Discarded');
+  // The device that showed the QR code discards only this, and keeps waiting (§13).
+  await expect(laptop.locator('#discarded')).toContainText('Discarded. Nothing was kept');
+  await expect(heading(laptop)).toHaveText('Scan this with the device that has the secret');
   await expect(heading(phone)).toHaveText('The other device did not keep it');
   expect(await laptop.content()).not.toContain(SECRET);
 });

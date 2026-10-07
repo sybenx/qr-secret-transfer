@@ -184,7 +184,9 @@ for (const [name, flow] of [['Flow A', flowA], ['Flow B', flowB]] as const) {
       net.run(sender, sender.session.enterCode(receiver.session.view().code!));
       net.run(receiver, receiver.session.decline());
       expect(committed(receiver)).toEqual([]);
-      expect(outcomeOf(receiver)).toBe('declined');
+      // A Receiver that showed the code discards only that candidate and waits on (§13).
+      if (receiver.session.showing) expect(receiver.session.view().phase).toBe('waiting');
+      else expect(outcomeOf(receiver)).toBe('declined');
       expect(outcomeOf(sender)).toBe('peer-aborted');
       // the secret did leave the Sender, so the Sender still owes itself a record (§14)
       expect(records(sender)).toHaveLength(1);
