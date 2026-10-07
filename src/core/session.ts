@@ -14,23 +14,32 @@
 //                 shows the QR        contacts
 //   Flow A        Receiver            Sender         QR says mode=offer
 //   Flow B        Sender              Receiver       QR says mode=request
+//
+// How the Sender checks the other device is a third, separate question (`CodeCheck` in
+// constants.ts): type the code, compare it, or no code at all. Each device has a
+// setting, the showing device puts its own in the QR, the contacting device answers
+// with the stricter of the two, and that is what applies to the pair.
 
 import { base64 } from '@scure/base';
 import { bytesToHex, equalAscii, isHex32, wipe } from './bytes.ts';
 import {
   ACK_WAIT_SECONDS,
+  type CodeCheck,
   KINDS,
   MAX_ATTEMPTS,
   MAX_HELD,
   MAX_PENDING,
   SESSION_SECONDS,
   SLACK_SECONDS,
+  TOKEN_BYTES,
   VERSION,
+  isCodeCheck,
+  stricter,
 } from './constants.ts';
 import { type Env, type NostrEvent, type Rumor, firstTag, isValidPublicKey, publicKey, sign } from './event.ts';
 import { type Profile, assertProfile } from './profile.ts';
 import { commit as commitOf, sas as sasOf } from './sas.ts';
-import type { Role } from './uri.ts';
+import { type Role, isToken } from './uri.ts';
 import { type RumorInput, buildRumor, unwrap, wrap } from './wrap.ts';
 
 export type Phase =
@@ -66,7 +75,12 @@ export type Outcome =
   /** Receiver: what arrived was not a payload of the declared profile (P4). */
   | 'bad-payload'
   /** Sender: the scanned code belongs to a burner this device recently failed against (§9.3). */
-  | 'blocked-peer';
+  | 'blocked-peer'
+  /**
+   * With no code to tell two devices apart, a second one answered the code, so the
+   * session stopped before anything moved. Reported on both devices.
+   */
+  | 'second-responder';
 
 export interface TransferRecord {
   /** Seconds since the epoch. */
@@ -80,6 +94,8 @@ export interface TransferRecord {
   peer: string;
   /** Whether more than one device responded to the code (§13). */
   multi: boolean;
+  /** How the code was checked. */
+  check: CodeCheck;
 }
 
 export type Effect<T> =
@@ -110,6 +126,12 @@ export interface SessionOptions<T> {
   env: Env;
   /** Sender only: true for a peer burner this device must not deal with again yet (§9.3). */
   isBlocked?: (pub: string) => boolean;
+  /** This device's setting for how the code is checked. Defaults to the strictest. */
+  check?: CodeCheck;
+  /** Contacting party only: the token read from the QR. */
+  token?: string;
+  /** Contacting party only: the `check` read from the QR. */
+  peerCheck?: CodeCheck;
 }
 
 export interface SessionView {
@@ -117,8 +139,16 @@ export interface SessionView {
   showing: boolean;
   phase: Phase;
   outcome?: Outcome;
-  /** Receiver, phase `code`: the five digits to show. The Sender never has this field. */
+  /**
+   * The check that applies now: on a contacting device, the one agreed with the QR;
+   * on a Sender that showed it, the strictest any responder asked for; on a Receiver
+   * that showed it, the one agreed with the device whose turn it is.
+   */
+  check: CodeCheck;
+  /** Receiver, phase `code`, unless the check is `none`: the five digits to show. */
   code?: string;
+  /** Sender, phase `release`, check `compare`: the code of the device being compared, to show. */
+  compare?: string;
   /** Receiver, phase `accept`: the P5 rendering of what arrived. */
   rendering?: string;
   /** Sender: code entries left. */
@@ -153,6 +183,8 @@ interface Peer<T> {
   held?: T;
   /** Sender: a code entry failed while this peer was ready. */
   failed: boolean;
+  /** The check agreed with this peer. */
+  check: CodeCheck;
 }
 
 const short = (pub: string) => `${pub.slice(0, 8)}…`;
@@ -169,6 +201,17 @@ export class Session<T> {
   private readonly secretKey: Uint8Array;
   private readonly peerPub: string | undefined;
   private readonly isBlocked: (pub: string) => boolean;
+  /** This device's own setting. */
+  private readonly own: CodeCheck;
+  /**
+   * Showing device: the token in its QR. Contacting device: the token it read. A
+   * contact that does not echo it never saw the code and is not a responder.
+   */
+  readonly token: string;
+  /** Contacting device: the check agreed with the QR. Showing device: its own, raised by every responder. */
+  private peak: CodeCheck;
+  /** Sender that showed the code: candidates the user said did not match. */
+  private readonly rejected = new Set<string>();
   private payloadContent: string | undefined;
 
   private phase: Phase = 'waiting';
@@ -207,10 +250,17 @@ export class Session<T> {
     this.pub = publicKey(options.secretKey);
     this.startedAt = options.env.now();
     this.isBlocked = options.isBlocked ?? (() => false);
+    this.own = options.check ?? 'type';
+    if (!isCodeCheck(this.own)) throw new Error('session: unknown check');
 
     if (this.showing) {
       if (options.peerPub !== undefined) throw new Error('session: the showing device has no peer yet');
+      this.token = bytesToHex(this.env.random(TOKEN_BYTES));
+      this.peak = this.own;
     } else {
+      if (!isToken(options.token)) throw new Error('session: the contacting device needs the token from the QR');
+      this.token = options.token;
+      this.peak = stricter(this.own, isCodeCheck(options.peerCheck) ? options.peerCheck : 'type');
       if (!isHex32(options.peerPub)) throw new Error('session: the contacting device needs the key from the QR');
       if (options.peerPub === this.pub) throw new Error('session: a device cannot pair with itself');
       if (!isValidPublicKey(options.peerPub)) throw new Error('session: the key from the QR is not a valid key');
@@ -234,10 +284,12 @@ export class Session<T> {
   view(): SessionView {
     const ready = [...this.peers.values()].filter((p) => p.sas !== undefined);
     const activePeer = this.active ? this.peers.get(this.active) : undefined;
+    const check = this.role === 'receiver' && this.showing ? (activePeer?.check ?? this.own) : this.peak;
     const view: SessionView = {
       role: this.role,
       showing: this.showing,
       phase: this.phase,
+      check,
       attemptsLeft: MAX_ATTEMPTS - this.attempts,
       ready: ready.length,
       multipleResponders: this.multipleResponders,
@@ -247,9 +299,11 @@ export class Session<T> {
       released: this.released,
     };
     if (this.outcome) view.outcome = this.outcome;
-    if (this.role === 'receiver' && activePeer?.sas && (this.phase === 'code' || this.phase === 'accept')) {
+    if (this.role === 'receiver' && activePeer?.sas && check !== 'none' && (this.phase === 'code' || this.phase === 'accept')) {
       view.code = activePeer.sas;
     }
+    const comparing = this.phase === 'release' && check === 'compare' ? this.comparing() : undefined;
+    if (comparing) view.compare = comparing.sas!;
     if (this.phase === 'accept' && activePeer?.held !== undefined) view.rendering = this.profile.render(activePeer.held);
     if (this.ackDeadline !== undefined && this.phase === 'sent') view.ackDeadline = this.ackDeadline;
     return view;
@@ -262,8 +316,8 @@ export class Session<T> {
     return { t: 'publish', event: wrap(r, this.secretKey, to, this.env), label: `${label} → ${short(to)}` };
   }
 
-  private abort(to: string): Effect<T> {
-    return this.send(to, { kind: KINDS.ABORT }, 'ABORT');
+  private abort(to: string, reason?: Outcome): Effect<T> {
+    return this.send(to, { kind: KINDS.ABORT, ...(reason ? { tags: [['reason', reason]] } : {}) }, 'ABORT');
   }
 
   /**
@@ -307,11 +361,16 @@ export class Session<T> {
     if (this.role === 'sender' && this.isBlocked(this.peerPub)) return this.finish('blocked-peer', []);
 
     const ownNonce = bytesToHex(this.env.random(32));
-    this.peers.set(this.peerPub, { pub: this.peerPub, order: this.order++, ownNonce, displayed: false, failed: false });
+    this.peers.set(this.peerPub, { pub: this.peerPub, order: this.order++, ownNonce, displayed: false, failed: false, check: this.peak });
     const commitment = bytesToHex(commitOf(VERSION, this.pub, ownNonce));
     const kind = this.role === 'sender' ? KINDS.HELLO : KINDS.REQUEST;
     const label = this.role === 'sender' ? 'HELLO' : 'REQUEST';
-    return [this.send(this.peerPub, { kind, tags: [['commit', commitment]] }, label)];
+    const tags = [
+      ['commit', commitment],
+      ['token', this.token],
+      ['check', this.peak],
+    ];
+    return [this.send(this.peerPub, { kind, tags }, label)];
   }
 
   /** A gift wrap arrived from a relay. Anything that is not a valid message of this session is ignored. */
@@ -362,15 +421,22 @@ export class Session<T> {
 
   /** Showing device: a HELLO (Flow A) or REQUEST (Flow B) from a burner we have not met. */
   private onContact(r: Rumor): Effect<T>[] {
-    if (this.phase !== 'waiting' && this.phase !== 'release' && this.phase !== 'code') return [];
     const commitment = firstTag(r, 'commit');
     if (!isHex32(commitment)) return [];
+    // The burner key is no secret: every relay the QR names has seen it. Only the
+    // token shows that this responder saw the code itself.
+    const token = firstTag(r, 'token');
+    if (token === undefined || !equalAscii(token, this.token)) {
+      return [{ t: 'trace', text: `ignored ${short(r.pubkey)}: it did not echo this code's token` }];
+    }
     // A second message from a burner we have met is a retransmission, not a responder (§13),
     // and a burner that was dropped does not get a second nonce exchange.
     if (this.contacted.has(r.pubkey)) return [];
     if (this.role === 'sender' && this.isBlocked(r.pubkey)) {
       return [{ t: 'trace', text: `ignored ${short(r.pubkey)}: a code already failed against it` }];
     }
+    if (this.own === 'none' && this.contacted.size >= 1) return this.secondResponder(r.pubkey);
+    if (this.phase !== 'waiting' && this.phase !== 'release' && this.phase !== 'code') return [];
     if (this.contacted.size >= 1) this.multipleResponders = true;
     // The cap is on contacts over the whole session, not on how many are held right now.
     const cap = this.role === 'receiver' ? MAX_HELD : MAX_PENDING;
@@ -379,6 +445,10 @@ export class Session<T> {
       return [{ t: 'trace', text: `turned away ${short(r.pubkey)}: this code has already been answered ${cap} times` }];
     }
     this.contacted.add(r.pubkey);
+    const announced = firstTag(r, 'check');
+    // A responder that says nothing about the check gets the strictest.
+    const check = stricter(this.own, isCodeCheck(announced) ? announced : 'type');
+    this.peak = stricter(this.peak, check);
     const ownNonce = bytesToHex(this.env.random(32));
     this.peers.set(r.pubkey, {
       pub: r.pubkey,
@@ -387,11 +457,27 @@ export class Session<T> {
       ownNonce,
       displayed: false,
       failed: false,
+      check,
     });
     return [
       { t: 'trace', text: `${r.kind === KINDS.HELLO ? 'HELLO' : 'REQUEST'} ← ${short(r.pubkey)}` },
       this.send(r.pubkey, { kind: KINDS.NONCE, tags: [['nonce', ownNonce]] }, 'NONCE'),
     ];
+  }
+
+  /**
+   * Showing device whose own setting is `none`: a second device answered. Without a
+   * code nothing can tell the two apart, so nothing moves and both are told why. If
+   * the text has already gone, it is too late to stop; the user is still told.
+   */
+  private secondResponder(pub: string): Effect<T>[] {
+    this.multipleResponders = true;
+    if (this.phase === 'sent') return [{ t: 'trace', text: `another device, ${short(pub)}, answered after the text was sent` }];
+    if (this.phase === 'ended') return [];
+    const effects: Effect<T>[] = [{ t: 'trace', text: `a second device, ${short(pub)}, answered; with no code there is no telling which is yours` }];
+    for (const p of this.peers.values()) effects.push(this.abort(p.pub, 'second-responder'));
+    effects.push(this.abort(pub, 'second-responder'));
+    return this.finish('second-responder', effects);
   }
 
   /** Contacting party: the showing device answered with its nonce. Reveal ours and derive the code. */
@@ -503,11 +589,14 @@ export class Session<T> {
     if (!peer) return [];
     const effects: Effect<T>[] = [{ t: 'trace', text: `ABORT ← ${short(r.pubkey)}` }];
 
-    if (!this.showing || r.pubkey === this.releasedTo) return this.finish('peer-aborted', effects);
+    if (!this.showing || r.pubkey === this.releasedTo) {
+      // The reason changes only what the user is told, and only the one peer can give it.
+      return this.finish(firstTag(r, 'reason') === 'second-responder' ? 'second-responder' : 'peer-aborted', effects);
+    }
 
     this.peers.delete(peer.pub);
     if (this.role === 'sender') {
-      if (this.phase === 'release' && ![...this.peers.values()].some((p) => p.sas !== undefined)) this.phase = 'waiting';
+      if (this.phase === 'release' && !this.hasCandidate()) this.phase = 'waiting';
       return effects;
     }
     if (peer.pub !== this.active) return effects;
@@ -526,27 +615,84 @@ export class Session<T> {
    * releases to that peer. Anything else spends one attempt.
    */
   enterCode(digits: string): Effect<T>[] {
-    if (this.phase !== 'release' || this.role !== 'sender') return [];
+    if (!this.canRelease('type')) return [];
     if (this.expired()) return this.tick();
     if (!/^[0-9]{5}$/.test(digits)) throw new Error('session: a pairing code is exactly five digits');
 
     const ready = [...this.peers.values()].filter((p) => p.sas !== undefined);
     const matches = ready.filter((p) => equalAscii(p.sas!, digits));
-    if (matches.length === 1) {
-      const target = matches[0]!;
-      const effects: Effect<T>[] = [this.send(target.pub, { kind: KINDS.PAYLOAD, content: this.payloadContent! }, 'PAYLOAD')];
-      for (const other of this.peers.values()) if (other.pub !== target.pub) effects.push(this.abort(other.pub));
-      this.releasedTo = target.pub;
-      this.releasedSas = target.sas;
-      this.released = true;
-      this.payloadContent = undefined;
-      this.ackDeadline = this.env.now() + ACK_WAIT_SECONDS;
-      this.phase = 'sent';
-      return effects;
-    }
+    if (matches.length === 1) return this.releaseTo(matches[0]!);
+    return this.miss(ready);
+  }
 
+  /**
+   * Sender, check `compare`: the user says the code this device shows, `view().compare`,
+   * is the one on the other device. Release to the device it belongs to.
+   */
+  confirmMatch(): Effect<T>[] {
+    if (!this.canRelease('compare')) return [];
+    if (this.expired()) return this.tick();
+    const target = this.comparing();
+    return target ? this.releaseTo(target) : [];
+  }
+
+  /**
+   * Sender, check `compare`: the user says the codes differ. That spends an attempt,
+   * as a wrong code typed would. A Sender that showed the code moves on to the next
+   * device that answered; one that scanned has only the one, and waits for the
+   * other device to show a different candidate's code.
+   */
+  rejectMatch(): Effect<T>[] {
+    if (!this.canRelease('compare')) return [];
+    if (this.expired()) return this.tick();
+    const target = this.comparing();
+    if (!target) return [];
+    if (this.showing) this.rejected.add(target.pub);
+    const effects = this.miss([target]);
+    if (this.phase === 'release' && !this.hasCandidate()) this.phase = 'waiting';
+    return effects;
+  }
+
+  /** Sender, check `none`: the user confirmed the release prompt. Only ever to a lone responder. */
+  release(): Effect<T>[] {
+    if (!this.canRelease('none')) return [];
+    if (this.expired()) return this.tick();
+    const ready = [...this.peers.values()].filter((p) => p.sas !== undefined);
+    if (ready.length !== 1 || (this.showing && this.contacted.size !== 1)) return [];
+    return this.releaseTo(ready[0]!);
+  }
+
+  private canRelease(check: CodeCheck): boolean {
+    return this.phase === 'release' && this.role === 'sender' && this.peak === check;
+  }
+
+  /** Sender, check `compare`: the device whose code is on screen. The earliest that has not been rejected. */
+  private comparing(): Peer<T> | undefined {
+    return [...this.peers.values()]
+      .filter((p) => p.sas !== undefined && !this.rejected.has(p.pub))
+      .sort((a, b) => a.order - b.order)[0];
+  }
+
+  private hasCandidate(): boolean {
+    return [...this.peers.values()].some((p) => p.sas !== undefined && !this.rejected.has(p.pub));
+  }
+
+  private releaseTo(target: Peer<T>): Effect<T>[] {
+    const effects: Effect<T>[] = [this.send(target.pub, { kind: KINDS.PAYLOAD, content: this.payloadContent! }, 'PAYLOAD')];
+    for (const other of this.peers.values()) if (other.pub !== target.pub) effects.push(this.abort(other.pub));
+    this.releasedTo = target.pub;
+    this.releasedSas = target.sas;
+    this.released = true;
+    this.payloadContent = undefined;
+    this.ackDeadline = this.env.now() + ACK_WAIT_SECONDS;
+    this.phase = 'sent';
+    return effects;
+  }
+
+  /** A code did not match these peers. Spends one attempt, and the session after the last. */
+  private miss(peers: Peer<T>[]): Effect<T>[] {
     this.attempts++;
-    for (const p of ready) {
+    for (const p of peers) {
       p.failed = true;
       this.failedPeers.add(p.pub);
     }
@@ -632,6 +778,7 @@ export class Session<T> {
           sas: completed.sas,
           peer: completed.peer,
           multi: this.multipleResponders,
+          check: this.recordedCheck(completed.peer),
         },
       });
     } else if (this.role === 'sender' && this.failedPeers.size > 0) {
@@ -646,10 +793,15 @@ export class Session<T> {
     this.seen.clear();
     this.contacted.clear();
     this.failedPeers.clear();
+    this.rejected.clear();
     // Every wrap this session will ever send has been built above; the burner can go.
     wipe(this.secretKey);
     effects.push({ t: 'ended', outcome });
     return effects;
+  }
+
+  private recordedCheck(pub: string): CodeCheck {
+    return this.showing ? (this.peers.get(pub)?.check ?? this.peak) : this.peak;
   }
 
   private assertLive(): void {

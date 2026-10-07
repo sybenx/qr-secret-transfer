@@ -99,7 +99,13 @@ for (const [name, flow] of [['Flow A', flowA], ['Flow B', flowB]] as const) {
       net.run(receiver, receiver.session.accept());
       for (const m of net.sent) {
         const { kind, tags, content } = m.rumor;
-        if (kind === KINDS.HELLO || kind === KINDS.REQUEST) expect(tags).toEqual([['commit', expect.stringMatching(/^[0-9a-f]{64}$/)]]);
+        if (kind === KINDS.HELLO || kind === KINDS.REQUEST) {
+          expect(tags).toEqual([
+            ['commit', expect.stringMatching(/^[0-9a-f]{64}$/)],
+            ['token', expect.stringMatching(/^[0-9a-f]{32}$/)],
+            ['check', 'type'],
+          ]);
+        }
         else if (kind === KINDS.NONCE || kind === KINDS.REVEAL) expect(tags).toEqual([['nonce', expect.stringMatching(/^[0-9a-f]{64}$/)]]);
         else expect(tags).toEqual([]);
         if (kind === KINDS.PAYLOAD) expect(content).toBe(base64.encode(new TextEncoder().encode(SECRET)));
@@ -191,10 +197,10 @@ for (const [name, flow] of [['Flow A', flowA], ['Flow B', flowB]] as const) {
       net.run(sender, sender.session.enterCode(code));
       net.run(receiver, receiver.session.accept());
       expect(records(sender)).toEqual([
-        { ts: net.clock.t, profile: 'qrst-demo-text', role: 'sender', outcome: 'delivered', sas: code, peer: receiver.pub, multi: false },
+        { ts: net.clock.t, profile: 'qrst-demo-text', role: 'sender', outcome: 'delivered', sas: code, peer: receiver.pub, multi: false, check: 'type' },
       ]);
       expect(records(receiver)).toEqual([
-        { ts: net.clock.t, profile: 'qrst-demo-text', role: 'receiver', outcome: 'received', sas: code, peer: sender.pub, multi: false },
+        { ts: net.clock.t, profile: 'qrst-demo-text', role: 'receiver', outcome: 'received', sas: code, peer: sender.pub, multi: false, check: 'type' },
       ]);
     });
 
@@ -261,7 +267,7 @@ describe('messages that do not belong (§11.4)', () => {
     const net = new Net<string>(demoText);
     const receiver = net.add('receiver', 'receiver', true);
     const late = (offset: number) =>
-      buildRumor({ kind: KINDS.HELLO, tags: [['commit', '11'.repeat(32)]] }, '22'.repeat(32).replace(/^22/, '02'), net.clock.t + offset);
+      buildRumor({ kind: KINDS.HELLO, tags: [['commit', '11'.repeat(32)], ['token', receiver.session.token]] }, '22'.repeat(32).replace(/^22/, '02'), net.clock.t + offset);
     expect(receiver.session.receiveRumor(late(-SLACK_SECONDS - 1)).some((e) => e.t === 'publish')).toBe(false);
     expect(receiver.session.receiveRumor(late(SESSION_SECONDS + SLACK_SECONDS + 1)).some((e) => e.t === 'publish')).toBe(false);
     expect(receiver.session.view().ready).toBe(0);
@@ -271,7 +277,7 @@ describe('messages that do not belong (§11.4)', () => {
     const net = new Net<string>(demoText);
     const receiver = net.add('receiver', 'receiver', true);
     const other = net.add('other', 'sender', false, { peerPub: receiver.pub, payload: 'x' });
-    const edge = buildRumor({ kind: KINDS.HELLO, tags: [['commit', '11'.repeat(32)]] }, other.pub, net.clock.t - SLACK_SECONDS);
+    const edge = buildRumor({ kind: KINDS.HELLO, tags: [['commit', '11'.repeat(32)], ['token', receiver.session.token]] }, other.pub, net.clock.t - SLACK_SECONDS);
     expect(receiver.session.receiveRumor(edge).some((e) => e.t === 'publish')).toBe(true);
   });
 
@@ -403,7 +409,7 @@ describe('multiple responders (§13)', () => {
 
   it('Flow A: a retransmitted HELLO from the same burner is not a second responder', () => {
     const { net, receiver, sender } = flowA();
-    const again = buildRumor({ kind: KINDS.HELLO, tags: [['commit', '55'.repeat(32)]] }, sender.pub, net.clock.t);
+    const again = buildRumor({ kind: KINDS.HELLO, tags: [['commit', '55'.repeat(32)], ['token', receiver.session.token]] }, sender.pub, net.clock.t);
     expect(receiver.session.receiveRumor(again)).toEqual([]);
     expect(receiver.session.view().multipleResponders).toBe(false);
   });
@@ -477,7 +483,7 @@ describe('construction', () => {
 // its own, so it knows the code first. It must not be able to walk away and ask again.
 describe('one nonce exchange per burner, and a cap for the whole session (§6, §13)', () => {
   const hello = (net: Net<string>, pub: string, n: number) =>
-    buildRumor({ kind: KINDS.HELLO, tags: [['commit', String(n).padStart(64, '0')]] }, pub, net.clock.t + n);
+    buildRumor({ kind: KINDS.HELLO, tags: [['commit', String(n).padStart(64, '0')], ['token', net.nodes[0]!.session.token]] }, pub, net.clock.t + n);
   const abort = (net: Net<string>, pub: string, n: number) => buildRumor({ kind: KINDS.ABORT }, pub, net.clock.t + n);
 
   it('a burner that aborts cannot contact again for a fresh code', () => {

@@ -2,9 +2,12 @@
 // the fragment, so that neither the burner key nor the relay list reaches the host.
 //
 //   https://<host>/<path>#v=1&mode=<offer|request>&p=<profile-id>&npub=<npub>
+//                         &check=<none|compare|type>&token=<32 hex>
 //                         [&relay=<wss url>]*[&origin=<claimed-origin>]
+//
+// `check` and `token` are not in the 1.4-draft (see SPEC_NOTES.md).
 
-import { MAX_RELAYS, PROFILE_ID, VERSION } from './constants.ts';
+import { type CodeCheck, MAX_RELAYS, PROFILE_ID, TOKEN_BYTES, VERSION, isCodeCheck } from './constants.ts';
 import { npubDecode, npubEncode } from './event.ts';
 
 /** `offer`: the showing device is the Receiver (Flow A). `request`: it is the Sender (Flow B). */
@@ -17,6 +20,10 @@ export interface PairingParams {
   profile: string;
   /** Burner public key of the device showing the code, 32 bytes of hex. */
   pub: string;
+  /** How the showing device wants the code checked. The stricter of the two devices' settings applies. */
+  check: CodeCheck;
+  /** Echoed by whoever answers, to show it saw the code: hex, TOKEN_BYTES long. */
+  token: string;
   /** One to four relays the showing device is listening on. */
   relays: string[];
   /** Present if and only if the showing device is a web client. An unverified claim. */
@@ -29,6 +36,7 @@ export type UriErrorCode =
   | 'missing-mode'
   | 'missing-profile'
   | 'bad-key'
+  | 'bad-token'
   | 'no-relays'
   | 'bad-relay'
   | 'bad-origin';
@@ -38,6 +46,13 @@ export class UriError extends Error {
     super(`pairing link: ${code}`);
     this.name = 'UriError';
   }
+}
+
+const TOKEN = new RegExp(`^[0-9a-f]{${TOKEN_BYTES * 2}}$`);
+
+/** True for a token of the right length in lowercase hex. */
+export function isToken(value: unknown): value is string {
+  return typeof value === 'string' && TOKEN.test(value);
 }
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -104,7 +119,9 @@ function enc(value: string): string {
 export function buildUri(base: string, p: PairingParams): string {
   if (!PROFILE_ID.test(p.profile)) throw new Error('pairing link: bad profile identifier');
   if (p.relays.length < 1 || p.relays.length > MAX_RELAYS) throw new Error('pairing link: needs 1 to 4 relays');
-  const parts = [`v=${p.v}`, `mode=${p.mode}`, `p=${p.profile}`, `npub=${npubEncode(p.pub)}`];
+  if (!isCodeCheck(p.check)) throw new Error('pairing link: bad check');
+  if (!isToken(p.token)) throw new Error('pairing link: bad token');
+  const parts = [`v=${p.v}`, `mode=${p.mode}`, `p=${p.profile}`, `npub=${npubEncode(p.pub)}`, `check=${p.check}`, `token=${p.token}`];
   for (const relay of p.relays) {
     const normal = normalizeRelayUrl(relay);
     if (!normal) throw new Error('pairing link: bad relay');
@@ -130,7 +147,9 @@ export function looksLikePairing(text: string): boolean {
  *
  * Rejects an unknown `v`, a missing `mode` and a missing `p` as §11.2 requires, and
  * verifies the bech32 checksum on the key, which is what catches a transcription error
- * in a pasted link (§12.1). Unknown parameters are ignored.
+ * in a pasted link (§12.1). Unknown parameters are ignored. A missing or unknown
+ * `check` reads as `type`, the strictest: a link never buys leniency by leaving
+ * something out.
  */
 export function parseUri(input: string): PairingParams {
   const text = input.trim();
@@ -151,6 +170,11 @@ export function parseUri(input: string): PairingParams {
     throw new UriError('bad-key');
   }
 
+  const token = q.get('token');
+  if (!isToken(token)) throw new UriError('bad-token');
+  const rawCheck = q.get('check');
+  const check: CodeCheck = isCodeCheck(rawCheck) ? rawCheck : 'type';
+
   const relays: string[] = [];
   for (const raw of q.getAll('relay')) {
     const relay = normalizeRelayUrl(raw);
@@ -160,7 +184,7 @@ export function parseUri(input: string): PairingParams {
   if (relays.length === 0) throw new UriError('no-relays');
   relays.length = Math.min(relays.length, MAX_RELAYS);
 
-  const params: PairingParams = { v: VERSION, mode, profile, pub, relays };
+  const params: PairingParams = { v: VERSION, mode, profile, pub, check, token, relays };
   const rawOrigin = q.get('origin');
   if (rawOrigin !== null) {
     const origin = normalizeOrigin(rawOrigin);

@@ -997,3 +997,50 @@ input[type='url'] {
     display: none;
   }
 }
+
+/* How this device checks the other one: three stops, weakest on the left. */
+.level {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  border: 2px solid var(--ink);
+}
+
+.slider {
+  width: 100%;
+  margin: 0.25rem 0 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+.slider-marks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+}
+
+.slider-mark {
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--quiet);
+  font: 400 0.9375rem/1.3 var(--sans);
+  cursor: pointer;
+}
+
+.slider-mark:nth-child(1) {
+  text-align: left;
+}
+
+.slider-mark:nth-child(2) {
+  text-align: center;
+}
+
+.slider-mark:nth-child(3) {
+  text-align: right;
+}
+
+.slider-mark.is-on {
+  color: var(--ink);
+  font-weight: 800;
+}
