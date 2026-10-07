@@ -57,18 +57,21 @@ const deps: TransferDeps<string> = {
 const DEFAULT_CHECK: CodeCheck = 'compare';
 const ownCheck = (): CodeCheck => store.check() ?? DEFAULT_CHECK;
 
-const CHECK_TEXT: Record<CodeCheck, { name: string; detail: string }> = {
+const CHECK_TEXT: Record<CodeCheck, { name: string; level: string; detail: string }> = {
   none: {
     name: 'No code',
+    level: 'Low',
     detail:
       'Nothing to check. Whoever answers the pairing code gets the secret, so anyone who sees the code can race you for it. If a second device answers, nothing is sent. Suits what you can revoke, such as a login.',
   },
   compare: {
     name: 'Compare a code',
+    level: 'Medium',
     detail: 'Both screens show five digits. You look at both and say whether they match. Suits most things.',
   },
   type: {
     name: 'Type a code',
+    level: 'High',
     detail:
       'The receiving device shows five digits and you type them on the sending one, so they have to be read. Suits what can never be taken back, such as a private key.',
   },
@@ -262,12 +265,19 @@ function checkSlider(): HTMLElement {
   input.value = String(CODE_CHECKS.indexOf(ownCheck()));
   const detail = h('p', { class: 'fine', id: 'check-detail' });
   const marks = CODE_CHECKS.map((c, i) =>
-    h('button', { type: 'button', class: 'slider-mark', 'data-check': c, tabindex: '-1', onClick: () => ((input.value = String(i)), update(true)) }, CHECK_TEXT[c].name),
+    h(
+      'button',
+      { type: 'button', class: 'slider-mark', 'data-check': c, tabindex: '-1', onClick: () => ((input.value = String(i)), update(true)) },
+      // How hard the sending device checks, as bars in ink: a strength, not a verdict of safe.
+      h('span', { class: 'bars' }, ...[0, 1, 2].map((b) => h('span', { class: b <= i ? 'bar is-full' : 'bar' }))),
+      h('span', { class: 'slider-name' }, CHECK_TEXT[c].name),
+      h('span', { class: 'slider-level' }, CHECK_TEXT[c].level),
+    ),
   );
   const update = (save: boolean) => {
     const check = CODE_CHECKS[Number(input.value)] ?? DEFAULT_CHECK;
     if (save) store.setCheck(check);
-    input.setAttribute('aria-valuetext', CHECK_TEXT[check].name);
+    input.setAttribute('aria-valuetext', `${CHECK_TEXT[check].name}, ${CHECK_TEXT[check].level.toLowerCase()} checking`);
     detail.textContent = CHECK_TEXT[check].detail;
     for (const m of marks) m.classList.toggle('is-on', m.dataset.check === check);
   };

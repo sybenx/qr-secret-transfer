@@ -1040,7 +1040,56 @@ input[type='url'] {
   text-align: right;
 }
 
+.slider-mark {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
+}
+
+.slider-mark:nth-child(2) {
+  justify-items: center;
+}
+
+.slider-mark:nth-child(3) {
+  justify-items: end;
+}
+
 .slider-mark.is-on {
   color: var(--ink);
   font-weight: 800;
+}
+
+.slider-level {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Signal-strength bars in ink only: how hard the check is, never a mark of "safe" (§11.2b). */
+.bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 1.25rem;
+}
+
+.bar {
+  width: 0.4375rem;
+  border: 2px solid currentColor;
+}
+
+.bar:nth-child(1) {
+  height: 40%;
+}
+
+.bar:nth-child(2) {
+  height: 70%;
+}
+
+.bar:nth-child(3) {
+  height: 100%;
+}
+
+.bar.is-full {
+  background: currentColor;
 }

@@ -15,7 +15,9 @@ test('the slider starts at “Compare a code” and remembers where it is left',
   const page = await w.device(browser, [], { check: null });
   const slider = page.locator('#check');
   await expect(slider).toHaveValue('1');
-  await expect(slider).toHaveAttribute('aria-valuetext', 'Compare a code');
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Compare a code, medium checking');
+  await expect(page.locator('.slider-mark[data-check="none"] .slider-level')).toHaveText('Low');
+  await expect(page.locator('.slider-mark[data-check="type"] .bar.is-full')).toHaveCount(3);
   await expect(page.locator('#check-detail')).toContainText('Suits most things');
   await shot(page, 'c0-slider');
 
