@@ -51,3 +51,34 @@ export const FAILED_SESSIONS_BEFORE_WARNING = 3;
 export const MAX_RELAYS = 4;
 
 export const PROFILE_ID = /^[a-z0-9-]{1,24}$/;
+
+/**
+ * How the Sender makes sure it is releasing to the device in front of the user,
+ * weakest first. The 1.4-draft knows only `type` (§9.2); the other two are this
+ * implementation's proposal (SPEC_NOTES.md, "Three levels of check").
+ *
+ *   none     No code. Release on consent alone: whoever answers the code gets it,
+ *            and a second device answering ends the session.
+ *   compare  Both devices show the code and the user says whether they match.
+ *   type     The Receiver shows the code and the user types it on the Sender.
+ *
+ * Each device has its own setting and the stricter of the two applies.
+ */
+export const CODE_CHECKS = ['none', 'compare', 'type'] as const;
+export type CodeCheck = (typeof CODE_CHECKS)[number];
+
+export function isCodeCheck(value: unknown): value is CodeCheck {
+  return typeof value === 'string' && (CODE_CHECKS as readonly string[]).includes(value);
+}
+
+/** The stricter of two settings. */
+export function stricter(a: CodeCheck, b: CodeCheck): CodeCheck {
+  return CODE_CHECKS.indexOf(a) >= CODE_CHECKS.indexOf(b) ? a : b;
+}
+
+/**
+ * Bytes of the token a pairing link carries, which whoever answers must echo inside
+ * its first sealed message. The burner key is not secret (a relay sees it), so the
+ * token is what shows that a responder actually saw the code.
+ */
+export const TOKEN_BYTES = 16;

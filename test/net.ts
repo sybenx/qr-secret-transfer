@@ -1,7 +1,7 @@
 // An in-memory stand-in for a relay: delivers each published wrap to the session it
 // is addressed to, and lets a test look inside or interfere.
 
-import { type Effect, type NostrEvent, type Profile, type Role, type Rumor, Session, firstTag, generateSecretKey, publicKey, unwrap } from '../src/core/index.ts';
+import { type CodeCheck, type Effect, type NostrEvent, type Profile, type Role, type Rumor, Session, firstTag, generateSecretKey, publicKey, unwrap } from '../src/core/index.ts';
 import { FakeClock, seededRandom } from './helpers.ts';
 
 export interface Node<T> {
@@ -35,10 +35,22 @@ export class Net<T> {
 
   constructor(private readonly profile: Profile<T>) {}
 
-  add(name: string, role: Role, showing: boolean, extra: { peerPub?: string; payload?: T; isBlocked?: (pub: string) => boolean; profile?: Profile<T> } = {}): Node<T> {
+  /**
+   * A contacting node reads the token and check from the QR of the node it names, as
+   * a device that saw the code would, unless the test says otherwise.
+   */
+  add(
+    name: string,
+    role: Role,
+    showing: boolean,
+    extra: { peerPub?: string; payload?: T; isBlocked?: (pub: string) => boolean; profile?: Profile<T>; check?: CodeCheck; token?: string; peerCheck?: CodeCheck } = {},
+  ): Node<T> {
     const random = seededRandom(`node:${name}`);
     const secret = generateSecretKey(random);
     const ownedSecret = secret.slice();
+    const shower = extra.peerPub !== undefined ? this.nodes.find((n) => n.pub === extra.peerPub) : undefined;
+    const token = extra.token ?? shower?.session.token;
+    const peerCheck = extra.peerCheck ?? shower?.session.view().check;
     const session = new Session<T>({
       role,
       showing,
@@ -48,6 +60,9 @@ export class Net<T> {
       ...(extra.peerPub !== undefined ? { peerPub: extra.peerPub } : {}),
       ...(extra.payload !== undefined ? { payload: extra.payload } : {}),
       ...(extra.isBlocked ? { isBlocked: extra.isBlocked } : {}),
+      ...(extra.check ? { check: extra.check } : {}),
+      ...(token !== undefined && extra.peerPub !== undefined ? { token } : {}),
+      ...(peerCheck !== undefined && extra.peerPub !== undefined ? { peerCheck } : {}),
     });
     const node: Node<T> = { name, session, secret, ownedSecret, pub: publicKey(secret), effects: [] };
     this.nodes.push(node);

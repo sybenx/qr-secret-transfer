@@ -14,7 +14,8 @@ export interface World {
   contexts: BrowserContext[];
   problems: string[];
   relay(behaviour?: Behaviour): Promise<TestRelay>;
-  device(browser: Browser, relayUrls: string[], options?: { viewport?: { width: number; height: number }; url?: string }): Promise<Page>;
+  /** `check` defaults to `type`, the strictest; `null` leaves it unset, as on a first visit. */
+  device(browser: Browser, relayUrls: string[], options?: { viewport?: { width: number; height: number }; url?: string; check?: string | null }): Promise<Page>;
   close(): Promise<void>;
 }
 
@@ -34,11 +35,18 @@ export async function world(): Promise<World> {
       const context = await browser.newContext({ viewport: options.viewport ?? { width: 1100, height: 900 } });
       w.contexts.push(context);
       // Configure the page as a visitor would under "This device": these relays, and no seeds.
-      await context.addInitScript((urls) => {
-        if (!localStorage.getItem('qrst.v1')) {
-          localStorage.setItem('qrst.v1', JSON.stringify({ configured: urls, seeds: [], discoveredAt: Math.floor(Date.now() / 1000) }));
-        }
-      }, relayUrls);
+      const check = options.check === undefined ? 'type' : options.check;
+      await context.addInitScript(
+        ({ urls, check }) => {
+          if (!localStorage.getItem('qrst.v1')) {
+            localStorage.setItem(
+              'qrst.v1',
+              JSON.stringify({ configured: urls, seeds: [], discoveredAt: Math.floor(Date.now() / 1000), ...(check ? { check } : {}) }),
+            );
+          }
+        },
+        { urls: relayUrls, check },
+      );
       const page = await context.newPage();
       page.on('pageerror', (e) => w.problems.push(`pageerror: ${e.message}`));
       page.on('console', (m) => {

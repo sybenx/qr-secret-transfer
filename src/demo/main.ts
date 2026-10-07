@@ -4,6 +4,8 @@
 // Nothing here talks to a network until the visitor starts a transfer.
 
 import {
+  CODE_CHECKS,
+  type CodeCheck,
   MAX_ATTEMPTS,
   type Outcome,
   type PairingParams,
@@ -14,6 +16,7 @@ import {
   parseUri,
   relayPolicy,
   scannerRole,
+  stricter,
   utf8Encode,
 } from '../core/index.ts';
 import { type RelayStatus, Store, Transfer, type TransferDeps, type TransferView, browserEnv, loopbackOnce } from '../web/index.ts';
@@ -48,6 +51,27 @@ const deps: TransferDeps<string> = {
   baseUrl: `${location.origin}${location.pathname}`,
   origin: location.origin,
   discoveryHints: discoveryHints(),
+};
+
+/** Comparing the code is the right level for most transfers, so it is where the slider starts. */
+const DEFAULT_CHECK: CodeCheck = 'compare';
+const ownCheck = (): CodeCheck => store.check() ?? DEFAULT_CHECK;
+
+const CHECK_TEXT: Record<CodeCheck, { name: string; detail: string }> = {
+  none: {
+    name: 'No code',
+    detail:
+      'Nothing to check. Whoever answers the pairing code gets the secret, so anyone who sees the code can race you for it. If a second device answers, nothing is sent. Suits what you can revoke, such as a login.',
+  },
+  compare: {
+    name: 'Compare a code',
+    detail: 'Both screens show five digits. You look at both and say whether they match. Suits most things.',
+  },
+  type: {
+    name: 'Type a code',
+    detail:
+      'The receiving device shows five digits and you type them on the sending one, so they have to be read. Suits what can never be taken back, such as a private key.',
+  },
 };
 
 const here = document.getElementById('here')!;
@@ -151,7 +175,7 @@ function attach(t: Transfer<string>): void {
 function startShowing(): void {
   withInterferenceNotice(() => {
     try {
-      attach(Transfer.show(deps, role!, role === 'sender' ? secret : undefined));
+      attach(Transfer.show({ ...deps, check: ownCheck() }, role!, role === 'sender' ? secret : undefined));
     } catch (error) {
       go({ name: 'refused', title: 'That could not be started', detail: error instanceof Error ? error.message : String(error) });
     }
@@ -161,7 +185,7 @@ function startShowing(): void {
 function startJoining(pairing: Pairing): void {
   withInterferenceNotice(() => {
     try {
-      attach(Transfer.join(deps, pairing.params, { viaCamera: pairing.viaCamera }, role === 'sender' ? secret : undefined));
+      attach(Transfer.join({ ...deps, check: ownCheck() }, pairing.params, { viaCamera: pairing.viaCamera }, role === 'sender' ? secret : undefined));
     } catch (error) {
       go({ name: 'refused', title: 'That could not be started', detail: error instanceof Error ? error.message : String(error) });
     }
@@ -224,6 +248,42 @@ function proceedWith(pairing: Pairing): void {
 
 // ---- screens: before a transfer -------------------------------------------------------
 
+/** How this device checks the code: a setting kept on this device. The stricter of the two devices' settings applies. */
+function checkSlider(): HTMLElement {
+  const input = h('input', {
+    type: 'range',
+    id: 'check',
+    class: 'slider',
+    min: 0,
+    max: CODE_CHECKS.length - 1,
+    step: 1,
+    'aria-describedby': 'check-detail',
+  });
+  input.value = String(CODE_CHECKS.indexOf(ownCheck()));
+  const detail = h('p', { class: 'fine', id: 'check-detail' });
+  const marks = CODE_CHECKS.map((c, i) =>
+    h('button', { type: 'button', class: 'slider-mark', 'data-check': c, tabindex: '-1', onClick: () => ((input.value = String(i)), update(true)) }, CHECK_TEXT[c].name),
+  );
+  const update = (save: boolean) => {
+    const check = CODE_CHECKS[Number(input.value)] ?? DEFAULT_CHECK;
+    if (save) store.setCheck(check);
+    input.setAttribute('aria-valuetext', CHECK_TEXT[check].name);
+    detail.textContent = CHECK_TEXT[check].detail;
+    for (const m of marks) m.classList.toggle('is-on', m.dataset.check === check);
+  };
+  input.addEventListener('input', () => update(true));
+  update(false);
+  return h(
+    'div',
+    { class: 'level' },
+    h('label', { for: 'check', class: 'label' }, 'How this device checks the other one'),
+    input,
+    h('div', { class: 'slider-marks', 'aria-hidden': 'true' }, ...marks),
+    detail,
+    h('p', { class: 'fine' }, 'Each device has its own setting, and the stricter of the two is used.'),
+  );
+}
+
 function homeScreen(): Node[] {
   return [
     title('What should this device do?'),
@@ -243,6 +303,7 @@ function homeScreen(): Node[] {
         h('span', null, 'It is on the other device and should come here.'),
       ),
     ),
+    checkSlider(),
     h('p', { class: 'fine' }, 'This is a demo of a draft protocol and the code has not been audited. Use something made up, not a real password.'),
   ];
 }
@@ -376,7 +437,7 @@ function pasteScreen(): Node[] {
     h('label', { for: 'link', class: 'label' }, 'Pairing link'),
     input,
     status,
-    h('p', { class: 'fine' }, 'On the other device, choose “Show a code here”, then “Copy the link”. The link is not secret: it holds a throwaway public key and relay addresses.'),
+    h('p', { class: 'fine' }, 'On the other device, choose “Show a code here”, then “Copy the link”. It holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer it, so pass it only to yourself.'),
     actions(button('Use this link', submit, 'primary', { id: 'paste-go' }), button('Back', () => go({ name: 'method' }), 'quiet')),
   ];
 }
@@ -385,6 +446,12 @@ function pasteScreen(): Node[] {
 function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
   const { params } = s.pairing;
   const becomes = scannerRole(params.mode);
+  const check = stricter(ownCheck(), params.check);
+  const gate: Record<CodeCheck, string> = {
+    type: 'until you type a code shown on that one',
+    compare: 'until you confirm that both screens show the same code',
+    none: 'until you confirm. No code is checked, because both devices are set to “No code”',
+  };
   const copied = h('span', { class: 'fine', role: 'status' });
   return [
     title(becomes === 'sender' ? 'This link asks this device to send a secret' : 'This link offers this device a secret'),
@@ -392,7 +459,7 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
       'p',
       null,
       becomes === 'sender'
-        ? 'It is a QRST pairing code from a device that wants to receive. If you continue, you choose what to send, and nothing leaves this device until you type a code shown on that one.'
+        ? `It is a QRST pairing code from a device that wants to receive. If you continue, you choose what to send, and nothing leaves this device ${gate[check]}.`
         : 'It is a QRST pairing code from a device that is sending. If you continue, this device shows you what arrived before keeping anything.',
     ),
     h(
@@ -511,6 +578,13 @@ function qrScreen(v: TransferView<string>): Built {
       ),
       h('p', { class: 'fine' }, 'This code works for ', left, ' more. ', relayLine),
       h(
+        'p',
+        { class: v.session.check === 'none' ? 'claim' : 'fine' },
+        v.session.check === 'none'
+          ? 'Set to “No code”: anyone who sees this code can answer it, and no digits will be checked. If two devices answer, nothing moves. A stricter setting on the other device still applies.'
+          : `Check: ${CHECK_TEXT[v.session.check].name.toLowerCase()}, unless the other device is set to something stricter.`,
+      ),
+      h(
         'details',
         { class: 'more' },
         h('summary', null, 'Can’t scan it? Copy the link instead'),
@@ -521,7 +595,7 @@ function qrScreen(v: TransferView<string>): Built {
           }, 'plain', { id: 'copy-link' }),
           copied,
         ),
-        h('p', { class: 'fine' }, 'The link holds a throwaway public key and relay addresses. It is not secret, and it stops working when this code does.'),
+        h('p', { class: 'fine' }, 'The link holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer this code, so pass it only to yourself. It stops working when this code does.'),
       ),
       actions(button('Cancel', reset, 'quiet')),
     ],
@@ -545,23 +619,40 @@ function contactingScreen(v: TransferView<string>): Built {
   return { nodes: [title('Contacting the other device'), note, list, actions(button('Cancel', reset, 'quiet'))], update };
 }
 
-/** The release prompt of §9.1 and the code entry of §9.2. */
+/** Shown on the next release screen: what happened to the last comparison. */
+let releaseNote = '';
+
+/** The five digits, shown. On the Receiver to be read; on a Sender that compares, to be compared. */
+function shownDigits(code: string, id: string): HTMLElement {
+  return h(
+    'div',
+    { class: 'code code-shown', role: 'img', 'aria-label': `Pairing code ${code.split('').join(' ')}`, id },
+    ...code.split('').map((d) => h('span', { class: 'digit', 'aria-hidden': 'true' }, d)),
+  );
+}
+
+/** The release prompt of §9.1, and however this pair checks the code. */
 function releaseScreen(v: TransferView<string>): Built {
+  const check = v.session.check;
   const origin = v.peerOrigin;
   const boxes: HTMLInputElement[] = [];
   const agree = h('input', { type: 'checkbox', id: 'agree' });
-  const message = h('p', { class: 'mismatch', role: 'alert' });
+  const message = h('p', { class: 'mismatch', role: 'alert' }, releaseNote);
+  releaseNote = '';
   const tries = h('p', { class: 'fine' });
   const others = h('p', { class: 'claim' });
 
   const digits = () => boxes.map((b) => b.value).join('');
   const refresh = () => {
-    send.disabled = !(digits().length === 5 && agree.checked);
+    send.disabled = !(agree.checked && (check !== 'type' || digits().length === 5));
   };
   // Described by what it does, never "OK" or "Continue"; names the claimed origin (§9.1).
   const send = button(profile.release.confirm(origin), () => {
+    if (!agree.checked || !transfer) return;
+    if (check === 'none') return transfer.release();
+    if (check === 'compare') return transfer.confirmMatch();
     const typed = digits();
-    if (!/^[0-9]{5}$/.test(typed) || !agree.checked || !transfer) return;
+    if (!/^[0-9]{5}$/.test(typed)) return;
     const before = transfer.view().session.attemptsLeft;
     transfer.enterCode(typed);
     const after = transfer.view();
@@ -573,7 +664,19 @@ function releaseScreen(v: TransferView<string>): Built {
     }
   }, 'plain', { id: 'release-send', disabled: true });
 
-  for (let i = 0; i < 5; i++) {
+  const differ = button('The codes are different', () => {
+    if (!transfer) return;
+    const note = v.showing
+      ? 'Not sent. That code belonged to a device that is not the one in front of you.'
+      : 'Not sent. If the other device says another device also answered, show the next code there and compare again.';
+    // Read by the screen that replaces this one, if the comparison moves to another device.
+    releaseNote = note;
+    transfer.rejectMatch();
+    releaseNote = '';
+    message.textContent = note;
+  }, 'plain', { id: 'release-differ' });
+
+  for (let i = 0; i < 5 && check === 'type'; i++) {
     const box = h('input', {
       type: 'text',
       inputmode: 'numeric',
@@ -611,17 +714,44 @@ function releaseScreen(v: TransferView<string>): Built {
       : ['The receiving device presents itself as an app, not a web page. Nothing has verified that.']
     : ['The receiving device has not said what it is.'];
 
+  // §13, on the device that showed the code. Who else answered is something the user should know.
+  const race: Record<CodeCheck, string> = {
+    type: 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. The digits you type decide which device gets the text: only the one whose screen shows them.',
+    compare: 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. Send only if the device in front of you shows exactly these five digits.',
+    none: '',
+  };
   const update = (view: TransferView<string>) => {
     const left = view.session.attemptsLeft;
     tries.textContent = left < MAX_ATTEMPTS ? `${left} of ${MAX_ATTEMPTS} tries left. After that this code is finished and nothing is sent.` : '';
     const several = view.showing && (view.session.multipleResponders || view.session.dropped > 0);
-    // §13, on the device that showed the code, in the specification's words.
-    others.textContent = several
-      ? 'Another device also responded to this code. If that wasn’t you, someone nearby may have scanned it. Nothing was shared with them. The digits you type decide which device gets the text: only the one whose screen shows them.'
-      : '';
-    others.hidden = !several;
+    others.textContent = several ? race[check] : '';
+    others.hidden = !several || !race[check];
   };
   update(v);
+
+  const how: Child[] =
+    check === 'type'
+      ? [
+          h('p', { class: 'label', id: 'code-label' }, 'Pairing code shown on your other device'),
+          h('div', { class: 'code', role: 'group', 'aria-labelledby': 'code-label' }, ...boxes),
+        ]
+      : check === 'compare'
+        ? [
+            h('p', { class: 'label', id: 'code-label' }, 'Your other device should show these same five digits'),
+            shownDigits(v.session.compare ?? '', 'compare-code'),
+          ]
+        : [
+            h(
+              'p',
+              { class: 'claim', id: 'no-code' },
+              'No code is checked: both devices are set to “No code”. The text goes to whichever device answered the pairing code. If a second device answers before you send, nothing is sent.',
+            ),
+          ];
+  const consent: Record<CodeCheck, string> = {
+    type: 'I can see the receiving device, and I mean to give it this text.',
+    compare: 'The receiving device shows these same five digits, and I mean to give it this text.',
+    none: 'I can see the receiving device, and I mean to give it this text.',
+  };
 
   return {
     nodes: [
@@ -630,13 +760,18 @@ function releaseScreen(v: TransferView<string>): Built {
       h('p', { class: 'claim' }, ...claim),
       !v.viaCamera && h('p', { class: 'claim' }, 'This request did not come from scanning a code with this page’s camera. It arrived as a link.'),
       others,
-      h('p', { class: 'label', id: 'code-label' }, 'Pairing code shown on your other device'),
-      h('div', { class: 'code', role: 'group', 'aria-labelledby': 'code-label' }, ...boxes),
+      ...how,
       message,
       tries,
-      h('label', { class: 'check', for: 'agree' }, agree, h('span', null, 'I can see the receiving device, and I mean to give it this text.')),
+      h('label', { class: 'check', for: 'agree' }, agree, h('span', null, consent[check])),
       // §9.1: declining is the prominent control; the affirmative is neither default nor dominant.
-      h('div', { class: 'actions actions-release' }, button(profile.release.decline, () => transfer?.decline(), 'primary', { id: 'release-decline' }), send),
+      h(
+        'div',
+        { class: 'actions actions-release' },
+        button(profile.release.decline, () => transfer?.decline(), 'primary', { id: 'release-decline' }),
+        send,
+        check === 'compare' && differ,
+      ),
     ],
     update,
   };
@@ -644,6 +779,7 @@ function releaseScreen(v: TransferView<string>): Built {
 
 function codeScreen(v: TransferView<string>): Built {
   const code = v.session.code ?? '';
+  const check = v.session.check;
   const left = h('span', { class: 'clock', 'aria-hidden': 'true' }, clock(v.session.expiresAt));
   const notice = h('div', { class: 'notice' });
   const update = (view: TransferView<string>) => {
@@ -659,16 +795,30 @@ function codeScreen(v: TransferView<string>): Built {
     );
   };
   update(v);
+  if (check === 'none') {
+    return {
+      nodes: [
+        title('Waiting for the other device to send'),
+        h('p', null, 'Both devices are set to “No code”, so there are no digits to check. The other device is asking whether to send.'),
+        notice,
+        h('p', { class: 'fine' }, 'This code works for ', left, ' more.'),
+        actions(button('Cancel', reset, 'quiet')),
+      ],
+      update,
+    };
+  }
   return {
     nodes: [
-      title('Type this code on your other device'),
-      // Shown here and typed there, never the other way round (§9.2).
+      title(check === 'compare' ? 'Compare this code with your other device' : 'Type this code on your other device'),
+      // Shown here and read there, never the other way round (§9.2).
+      shownDigits(code, 'code'),
       h(
-        'div',
-        { class: 'code code-shown', role: 'img', 'aria-label': `Pairing code ${code.split('').join(' ')}`, id: 'code' },
-        ...code.split('').map((d) => h('span', { class: 'digit', 'aria-hidden': 'true' }, d)),
+        'p',
+        null,
+        check === 'compare'
+          ? 'Your other device shows five digits too. If they are the same as these, confirm there. If they differ, say so there: some other device answered.'
+          : 'It is a pairing code for this one transfer. It is not a PIN, and nothing else will ever ask you for it.',
       ),
-      h('p', null, 'It is a pairing code for this one transfer. It is not a PIN, and nothing else will ever ask you for it.'),
       notice,
       h('p', { class: 'fine' }, 'This code works for ', left, ' more.'),
       actions(button('Cancel', reset, 'quiet')),
@@ -682,7 +832,7 @@ function acceptScreen(v: TransferView<string>): Built {
     nodes: [
       title(profile.accept.heading),
       h('p', { class: 'rendering', id: 'rendering' }, v.session.rendering ?? ''),
-      h('p', null, 'Keep it if this is what you just sent and your other device said the code matched.'),
+      h('p', null, v.session.check === 'none' ? 'Keep it if this is what you just sent.' : 'Keep it if this is what you just sent and the code matched on your other device.'),
       actions(
         button(profile.accept.confirm, () => transfer?.accept(), 'primary', { id: 'accept-keep' }),
         button(profile.accept.decline, () => transfer?.decline(), 'plain', { id: 'accept-discard' }),
@@ -693,14 +843,20 @@ function acceptScreen(v: TransferView<string>): Built {
 
 function sentScreen(v: TransferView<string>): Built {
   const left = h('span', { class: 'clock' });
+  const late = h('p', { class: 'claim', hidden: true });
   const update = (view: TransferView<string>) => {
     left.textContent = view.session.ackDeadline ? clock(view.session.ackDeadline) : '';
+    // With no code, a device that answers after the text has gone may have been racing for it.
+    const raced = view.session.check === 'none' && view.session.multipleResponders;
+    late.textContent = raced ? 'Another device also answered the pairing code after the text was sent. If the device in front of you does not show what you sent, someone else may have it.' : '';
+    late.hidden = !raced;
   };
   update(v);
   return {
     nodes: [
       title('Sent. Waiting for the other device to keep it'),
       h('p', null, 'The text has left this device. The other device is showing what arrived and asking before it keeps it.'),
+      late,
       h('p', { class: 'fine' }, 'This device waits ', left, ' more for confirmation.'),
       actions(button('Stop waiting', () => transfer?.cancel(), 'quiet')),
     ],
@@ -758,6 +914,10 @@ function endedScreen(v: TransferView<string>): Node[] {
     expired: ['The code expired', 'A pairing code works for ten minutes. Nothing was sent or kept.'],
     'bad-payload': ['That was not a text', 'What arrived was not something this page can use, so it was discarded. The other device has been told.'],
     'blocked-peer': ['That code has already failed', 'Ask the other device for a new code.'],
+    'second-responder': [
+      'Two devices answered the pairing code',
+      'With no code to check, there is no telling which of them is yours, so nothing was sent or kept. Someone else may have seen the pairing code. To try again, start over on both devices, ideally with a code check.',
+    ],
   };
   const [heading, detail] = text[outcome];
   return [title(heading), h('p', { id: 'outcome' }, detail), actions(button('Start again', reset, 'primary', { id: 'again' }))];
@@ -770,7 +930,9 @@ function transferKey(v: TransferView<string>): string {
     case 'waiting':
       return v.showing ? 'qr' : 'contacting';
     case 'code':
-      return `code:${v.session.code}`;
+      return `code:${v.session.check}:${v.session.code}`;
+    case 'release':
+      return `release:${v.session.check}:${v.session.compare ?? ''}`;
     default:
       return v.session.phase;
   }
@@ -833,9 +995,17 @@ function otherDevice(v: TransferView<string> | undefined): Node[] {
         ? [p('Choose ', h('strong', null, 'Send a secret'), ', type it in, then ', h('strong', null, 'Scan a code with this device'), ' and point it at this screen.')]
         : [p('Choose ', h('strong', null, 'Receive a secret'), ', then ', h('strong', null, 'Scan a code with this device'), ' and point it at this screen.')];
     case 'release':
-      return [p('It is showing five digits. Read them from its screen and type them here.')];
+      return {
+        type: [p('It is showing five digits. Read them from its screen and type them here.')],
+        compare: [p('It is showing five digits. They should be the same as the ones here.')],
+        none: [p('It is waiting for this device to send.')],
+      }[v.session.check];
     case 'code':
-      return [p('It is asking for five digits. Type the ones shown here, then confirm there that you mean to send.')];
+      return {
+        type: [p('It is asking for five digits. Type the ones shown here, then confirm there that you mean to send.')],
+        compare: [p('It is showing five digits too. If they are the same as these, confirm there that you mean to send.')],
+        none: [p('It is asking whether to send. Confirm there.')],
+      }[v.session.check];
     case 'accept':
       return [p('It says the text is sent and is waiting for this device to keep it.')];
     case 'sent':
@@ -906,7 +1076,7 @@ function deviceDrawer(): void {
     h(
       'li',
       null,
-      `${when(r.ts)}: ${r.role === 'sender' ? 'sent' : 'received'} (${r.outcome}), other device ${shortKey(r.peer)}, via ${r.relays.map(host).join(', ')}`,
+      `${when(r.ts)}: ${r.role === 'sender' ? 'sent' : 'received'} (${r.outcome}), ${r.check ? `${CHECK_TEXT[r.check].name.toLowerCase()}, ` : ''}other device ${shortKey(r.peer)}, via ${r.relays.map(host).join(', ')}`,
       r.multi ? '. More than one device responded to the code.' : '.',
     ),
   );
@@ -984,7 +1154,7 @@ function render(): void {
     replace(here);
     append(here, nodes);
     // Something leaving this device is the one state that looks different from every other.
-    here.classList.toggle('is-release', key === 'transfer:release');
+    here.classList.toggle('is-release', key.startsWith('transfer:release'));
     replace(there, ...otherDevice(view));
     if (!first) {
       here.querySelector<HTMLElement>('.state')?.focus({ preventScroll: true });

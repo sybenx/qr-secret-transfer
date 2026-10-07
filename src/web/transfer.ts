@@ -3,6 +3,7 @@
 // handful of methods and re-reads view() whenever onChange fires.
 
 import {
+  type CodeCheck,
   type Effect,
   type Env,
   type Mode,
@@ -32,6 +33,8 @@ export interface TransferDeps<T> {
   baseUrl: string;
   /** This page's origin. A web client must claim it in the QR it shows (§11.2). */
   origin: string;
+  /** This device's setting for how the code is checked. Defaults to `type`, the strictest. */
+  check?: CodeCheck;
   /** Relays worth asking for NIP-66 discovery events, beyond those this device knows. */
   discoveryHints?: readonly string[];
   /** Top up remembered relays in the background after a code is shown. Default true. */
@@ -142,6 +145,7 @@ export class Transfer<T> {
       secretKey: generateSecretKey(deps.env.random),
       env: deps.env,
       isBlocked: (pub) => deps.store.isBlocked(pub),
+      check: deps.check ?? 'type',
       ...(payload !== undefined ? { payload } : {}),
     });
     const transfer = new Transfer(deps, session, undefined, true);
@@ -158,8 +162,11 @@ export class Transfer<T> {
       profile: deps.profile,
       secretKey: generateSecretKey(deps.env.random),
       peerPub: params.pub,
+      token: params.token,
+      peerCheck: params.check,
       env: deps.env,
       isBlocked: (pub) => deps.store.isBlocked(pub),
+      check: deps.check ?? 'type',
       ...(payload !== undefined ? { payload } : {}),
     });
     const transfer = new Transfer(deps, session, params, how.viaCamera);
@@ -194,6 +201,8 @@ export class Transfer<T> {
       mode: showingMode(this.session.role),
       profile: this.deps.profile.id,
       pub: this.session.pub,
+      check: this.session.view().check,
+      token: this.session.token,
       relays: listed,
       origin: this.deps.origin,
     });
@@ -254,6 +263,21 @@ export class Transfer<T> {
   /** Sender: the five digits read from the other device. Throws on anything that is not five digits. */
   enterCode(digits: string): void {
     this.apply(this.session.enterCode(digits));
+  }
+
+  /** Sender, check `compare`: the code on screen is the one on the other device. */
+  confirmMatch(): void {
+    this.apply(this.session.confirmMatch());
+  }
+
+  /** Sender, check `compare`: the codes differ. */
+  rejectMatch(): void {
+    this.apply(this.session.rejectMatch());
+  }
+
+  /** Sender, check `none`: send on consent alone. */
+  release(): void {
+    this.apply(this.session.release());
   }
 
   /** Sender: do not send. Receiver: discard what arrived. */

@@ -53,6 +53,7 @@
     </a>
     <nav aria-label="On this page">
       <a href="#how">How it works</a>
+      <a href="#levels">Three levels</a>
       <a href="#limits">What it stops</a>
       <a href="#build">Build with it</a>
       <a href="https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md">Specification</a>
@@ -62,7 +63,7 @@
   <main id="top">
     <section class="hero wrap">
       <h1>QR Secret Transfer</h1>
-      <p class="lede">Move a password, a key or a token from one device to another. One shows a QR code, the other scans it, and you carry five digits between the two screens. There is no account and no server of yours in the middle: the secret travels sealed, over public relays that cannot read it.</p>
+      <p class="lede">Move a password, a key or a token from one device to another. One shows a QR code, the other scans it, and you check five digits across the two screens. There is no account and no server of yours in the middle: the secret travels sealed, over public relays that cannot read it.</p>
     </section>
 
     <section class="field" id="demo" aria-label="Live demo">
@@ -115,7 +116,7 @@
       </div>
       <ol class="ladder">
         <li>
-          <p class="l">The receiving device makes a throwaway key pair and shows the public half as a QR code. The code holds no secret, so a photograph of it is worth nothing.</p>
+          <p class="l">The receiving device makes a throwaway key pair and shows the public half as a QR code. The code holds no secret. Someone who photographs it can try to answer it, and the next steps are what stop them.</p>
         </li>
         <li>
           <span class="wire wire-eye">its camera</span>
@@ -129,7 +130,7 @@
         <li>
           <p class="l">The receiving device shows the five digits.</p>
           <span class="wire wire-hand">you</span>
-          <p class="r">The sending device asks for them. You read one screen and type into the other. This is the step that stops someone sitting in the middle.</p>
+          <p class="r">The sending device shows them too, and you check the two screens match. At the strictest setting you type them in instead. This is the step that stops someone sitting in the middle.</p>
         </li>
         <li>
           <span class="wire wire-relay">sealed, by relay</span>
@@ -142,16 +143,28 @@
       <p>A relay in the middle handles every sealed message and learns none of it. Each one is signed by a different one-time key and addressed to a throwaway key, and what is inside is encrypted twice: once to hide the contents, once to hide who sent it.</p>
     </section>
 
+    <section class="wrap prose" id="levels">
+      <h2>Three levels of check</h2>
+      <p>How hard the sending device checks the other one is a setting, the slider above the demo. Each device has its own, and the stricter of the two is used, so neither device can talk the other down.</p>
+      <ul>
+        <li><strong>Type a code.</strong> The receiving device shows five digits and you type them on the sending one. Typing means they have to be read, and the digits you type pick out your device even if a stranger answered first. For what can never be taken back, such as a private key.</li>
+        <li><strong>Compare a code.</strong> Both devices show five digits and you say whether they match. A stranger’s digits are random, so a glance catches them, as long as you do glance. If another device answered, the sending device says so. The default, and right for most things.</li>
+        <li><strong>No code.</strong> Nothing to check: whoever answers the pairing code gets the secret. If a second device answers, the transfer stops and both are told, but someone who sees the code and answers before your device does can get it. For things you can revoke, such as a login session, and best when the receiving device shows the code.</li>
+      </ul>
+      <p>These are recommendations. What a secret is worth, and what checking it is worth, is up to whoever builds with QRST.</p>
+    </section>
+
     <section class="wrap prose" id="limits">
       <h2>What it stops, and what it does not</h2>
       <div class="pair">
         <div>
           <h3>It stops</h3>
           <ul>
-            <li><strong>A photograph of the code.</strong> It holds a public key and relay addresses, and nothing else.</li>
+            <li><strong>A photograph of the code.</strong> It holds a public key, relay addresses and a one-time token. Someone who answers with it gets different digits from yours.</li>
             <li><strong>Someone swapping keys in the middle.</strong> The five digits would differ. They get one guess in a hundred thousand, once, and cannot choose the digits.</li>
+            <li><strong>Someone watching a relay.</strong> They see the throwaway key but not the token, so they cannot answer the code at all.</li>
             <li><strong>A relay reading or faking a message.</strong> It can drop one or delay one. It cannot open one or write one.</li>
-            <li><strong>A stranger who scans the code first.</strong> Their digits are different, so nothing is sent to them.</li>
+            <li><strong>A stranger who scans the code first.</strong> Their digits are different, so nothing is sent to them, and the sending device tells you another device answered.</li>
             <li><strong>Something planted on the receiving device.</strong> It shows what arrived and keeps nothing until you say so.</li>
           </ul>
         </div>
@@ -159,6 +172,8 @@
           <h3>It does not stop</h3>
           <ul>
             <li><strong>You sending to a device that should not have it.</strong> A hostile page can show a real code. If you type its digits and confirm, it receives the secret. The digits prove you are talking to the screen you read. They do not prove that screen deserves anything.</li>
+            <li><strong>With no code, a stranger who answers first.</strong> If they answer before your device and you send before your device answers, they get it. That is the price of not checking.</li>
+            <li><strong>With a code, someone you do not check.</strong> Comparing works only if you look. Typing is there for when that is not enough.</li>
             <li><strong>A relay noticing that a transfer happened.</strong> It sees two throwaway keys exchange a few messages, when, and from which network addresses.</li>
             <li><strong>A compromised device.</strong> It gives up whatever it holds.</li>
           </ul>
@@ -184,7 +199,7 @@
       <h3>Is this a way to log in?</h3>
       <p>It can carry a login, but what it does is move a secret from one device to another. That difference matters because scanning a code feels like signing in, so the sending device always says in plain words that something is about to leave it.</p>
       <h3>What are the five digits for?</h3>
-      <p>They prove that the two devices are talking to each other and not to something in between. Both work the digits out separately; they are never sent. You are the channel: you read them on the receiving device and type them into the sending one.</p>
+      <p>They prove that the two devices are talking to each other and not to something in between. Both work the digits out separately; they are never sent. You are the channel: you check that both screens show the same digits, or at the strictest setting read them on one and type them into the other. Taking a photo of them gets nobody anything: they belong to this one pair of devices.</p>
       <h3>Why can’t the relay read it?</h3>
       <p>The secret is encrypted on the sending device to a key that exists only on the receiving one, and that envelope is wrapped again under a one-time key. The relay stores and forwards what it is given, and what it is given is noise.</p>
       <h3>Do I need a Nostr account?</h3>

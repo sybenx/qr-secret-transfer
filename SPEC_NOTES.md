@@ -5,6 +5,61 @@ where the text could be read two ways, or where following it literally would be
 unsafe, with the reading this implementation took. They are in the form
 `SPEC_ISSUES.md` asks for and are meant to be moved there.
 
+## Proposed changes
+
+### Three levels of check, where 1.4 has one
+
+§9.2 allows one way to verify the code, typing it (or capturing it), and says
+"Confirmation alone does not conform". That fixes one risk level for every payload.
+How much checking a transfer deserves depends on what is moving, and that is for
+whoever builds with the protocol to decide. This implementation offers three:
+
+| `check` | Sender | Receiver |
+|---|---|---|
+| `type` | §9.2 as written: types the digits the Receiver shows | shows the code |
+| `compare` | shows the code it derived; the user confirms both screens match | shows the code |
+| `none` | release consent only, to a lone responder | shows no code |
+
+**How it is agreed.** Each device has a setting. The showing device puts its own in
+the QR as `check=`; the contacting device answers with the stricter of that and its
+own, in a `check` tag on HELLO or REQUEST; the showing device takes the stricter of
+that and its own, per responder. A Sender that showed the code applies the strictest
+any responder asked for. A link with no `check`, or one a device does not know, reads
+as `type`, and a responder that sends none is taken to want `type`. So either device
+can raise the level and neither can lower it below the other's setting.
+
+**`compare`.** A deliberate departure from §9.1 item 3 and §9.2. The Sender shows the
+code of one responder at a time, the earliest first, and offers "the codes are
+different", which spends an attempt and is remembered for §9.3 exactly like a wrong
+entry. A Sender that showed the code then shows the next responder's code; one that
+scanned has only one peer, and the user asks the Receiver for its next candidate as
+before. A responder's code cannot be steered (commit-then-reveal), so a stranger's
+code is random and a glance at a few digits catches it; what `compare` does not
+survive is a user who does not look. When more than one device answered, the Sender
+says so above the code.
+
+**`none`.** Release on consent alone. Without a code nothing can tell two responders
+apart, so a deliberate exception to §13: on a device that showed the code with its own
+setting at `none`, a second responder ends the session on every device, with an ABORT
+carrying `reason=second-responder` so the others can say why. If the text has already
+gone, it is too late to stop, and the Sender says another device answered after it was
+sent. What remains is a stranger who answers first and a user who releases before
+their own device answers; that is the cost of the level, and the page says so.
+
+**The token.** None of this is safe without one. The burner key in the QR is not a
+secret: the showing device publishes its loopback probe (§11.3a) as a wrap addressed
+to it, and subscribes with it, on the very relays the QR names. Anyone reading those
+relays can contact the session without ever seeing the code. Under `type` and
+`compare` that gains them nothing but a slot; under `none` it would win them the
+secret. So every QR carries `token=` (16 random bytes, hex), every HELLO and REQUEST
+echoes it inside the seal, and a contact without it is ignored and not counted as a
+responder. This is §12.3's returned secret, applied to every session. It also means a
+"another device answered" notice is evidence that someone saw the code.
+
+**Suggested text.** Define `check` and `token` in §11.2 and §11.4; let §9.2 name the
+three levels and let a profile (§5) set a minimum; restate §9.1 item 3 and §13 as
+applying to `type` and `compare`.
+
 ## Suspected errors
 
 ### §6 and §13: the contacting party gets more than one attempt per session

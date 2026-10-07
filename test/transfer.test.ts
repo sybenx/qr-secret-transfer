@@ -200,7 +200,7 @@ describe('one relay cannot make another relay\'s delivery disappear', () => {
     const { Session, generateSecretKey, publicKey } = await import('../src/core/index.ts');
     const a = generateSecretKey(env.random);
     const b = generateSecretKey(env.random);
-    const sender = new Session<string>({ role: 'sender', showing: false, profile: demoText, secretKey: a, peerPub: publicKey(b), payload: 'x', env });
+    const sender = new Session<string>({ role: 'sender', showing: false, profile: demoText, secretKey: a, peerPub: publicKey(b), token: '00'.repeat(16), payload: 'x', env });
     const wrap = sender.start().find((e) => e.t === 'publish')!;
     const event = (wrap as { event: { id: string; content: string } }).event;
     const got: unknown[] = [];

@@ -7,6 +7,8 @@ const params = {
   mode: 'offer' as const,
   profile: 'qrst-demo-text',
   pub,
+  check: 'compare' as const,
+  token: '0123456789abcdef0123456789abcdef',
   relays: ['wss://relay.example.com', 'wss://other.example.org/path'],
   origin: 'https://qrst.example',
 };
@@ -85,6 +87,22 @@ describe('pairing link (§11.2)', () => {
 
   it('ignores parameters it does not know', () => {
     expect(parseUri(buildUri('https://qrst.example/', params) + '&future=1')).toEqual(params);
+  });
+});
+
+describe('check and token', () => {
+  const without = (name: string) => buildUri('https://qrst.example/', params).replace(new RegExp(`&${name}=[^&]*`), '');
+
+  it('a link with no check, or a check this device does not know, means typing', () => {
+    expect(parseUri(without('check')).check).toBe('type');
+    expect(parseUri(buildUri('https://qrst.example/', params).replace('check=compare', 'check=lenient')).check).toBe('type');
+    for (const check of ['none', 'compare', 'type'] as const) expect(parseUri(buildUri('https://qrst.example/', { ...params, check })).check).toBe(check);
+  });
+
+  it('a link with no token, or a malformed one, is refused', () => {
+    expect(code(() => parseUri(without('token')))).toBe('bad-token');
+    expect(code(() => parseUri(buildUri('https://qrst.example/', params).replace(params.token, params.token.slice(2))))).toBe('bad-token');
+    expect(code(() => parseUri(buildUri('https://qrst.example/', params).replace(params.token, params.token.toUpperCase())))).toBe('bad-token');
   });
 });
 

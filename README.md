@@ -1,7 +1,7 @@
 # QR Secret Transfer (QRST)
 
 Move a secret from one device to another by scanning a QR code. One device shows a
-code, the other scans it, a person carries five digits between the two screens, and
+code, the other scans it, a person checks five digits across the two screens, and
 only then does the secret travel, sealed, over public relays that neither device runs
 and that cannot read it.
 
@@ -75,6 +75,21 @@ The wire protocol of `QR_SECRET_TRANSFER.md` 1.4-draft:
   enforce them, and the acceptance confirmation;
 - multiple responders (§13) and the local transfer record (§14);
 - relay subscription, the session outbox, and NIP-42 with the burner (§11.5).
+
+It goes beyond the specification in one place, on purpose: **three levels of check**
+instead of one. The 1.4-draft allows only typing the code (§9.2). This implementation
+also offers comparing it and no code at all, chosen on each device with a slider; the
+stricter of the two devices' settings applies.
+
+| Level | Sender | Receiver | For |
+|---|---|---|---|
+| Type a code | types the digits shown on the Receiver | shows five digits | what cannot be taken back |
+| Compare a code (default) | shows five digits, the user confirms they match | shows five digits | most things |
+| No code | consent only; a second responder ends the session | shows nothing | what can be revoked |
+
+Every pairing link also carries a one-time token that a responder must echo inside its
+first sealed message, so that only a device that saw the code can answer it. See
+`SPEC_NOTES.md`, "Three levels of check", for the reasoning and the exact rules.
 
 It also implements the relay selection drafted as §11.3a of the unpublished
 standalone 1.5-draft, because the demo has to choose relays somehow and that draft

@@ -6,7 +6,9 @@
 //   - the transfer log of §14
 
 import {
+  type CodeCheck,
   FAILED_SESSIONS_BEFORE_WARNING,
+  isCodeCheck,
   THROTTLE_SECONDS,
   type TransferRecord,
   normalizeRelayUrl,
@@ -47,6 +49,8 @@ interface Data {
   failedSessions: number[];
   log: LoggedTransfer[];
   discoveredAt: number;
+  /** How this device checks the code, if the user has chosen. */
+  check?: CodeCheck;
 }
 
 export interface KeyValue {
@@ -113,6 +117,18 @@ export class Store {
         // Private browsing or a blocked store: carry on in memory.
       }
     }
+  }
+
+  // ---- the check ----------------------------------------------------------------------
+
+  /** How this device checks the code, if the user has chosen. */
+  check(): CodeCheck | undefined {
+    return isCodeCheck(this.data.check) ? this.data.check : undefined;
+  }
+
+  setCheck(check: CodeCheck): void {
+    this.data.check = check;
+    this.save();
   }
 
   // ---- relays -------------------------------------------------------------------------
