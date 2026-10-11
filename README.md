@@ -80,6 +80,13 @@ The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-k
 - multiple responders (§13) and the local transfer record (§14);
 - relay subscription, the session outbox, and NIP-42 with the burner (§11.5).
 
+with one change the specification does not have yet: every message is an
+*ephemeral* gift wrap, kind 21059 (NIP-59 §4), not kind 1059, and each one goes out
+again, in a fresh wrap, until the peer answers it. Relays treat kind 1059 as a stored
+direct message and were seen serving one long after its NIP-40 expiry; a relay must
+not store kind 21059. The proposed text for §11.4, §11.5, §11.7 and the T8 row is in
+[`SPEC_PROPOSAL_21059.md`](SPEC_PROPOSAL_21059.md).
+
 The three levels of §9.2 are chosen on each device with a slider, and the stricter of
 the two devices' settings applies:
 
@@ -126,7 +133,7 @@ src/core/     pure protocol: no I/O, injected randomness and clock
   profile.ts    the profile interface (§5) and the demo's text profile
   session.ts    the state machine: flows, consent rules, responders (§7, §8, §9, §13)
 src/web/      browser adapters
-  pool.ts       relay links, outbox, NIP-42, the loopback test (§11.5)
+  pool.ts       relay links, the re-send loop, NIP-42, the loopback test (§11.5)
   select.ts     relay selection, NIP-11 limits, NIP-66 discovery
   store.ts      what a device remembers: relays, throttle, transfer log
   transfer.ts   one transfer end to end, headless
@@ -160,6 +167,10 @@ npm run check        # typecheck, unit and integration tests, build, browser tes
   a local relay that can refuse writes, swallow events, demand authentication, serve
   wraps only to their recipient, advertise limits, answer late, or drop every
   connection mid-session.
+- **Re-sending** (`test/retransmit.test.ts`): each device in turn loses its connection
+  as the message meant for it goes out, at every step of both flows, over a relay that
+  keeps nothing and over one that behaves like strfry (keeps ephemeral events five
+  minutes, refuses a repeated id and anything over a minute old).
 - **Browser** (`test/e2e`): two browser contexts as two devices, through both flows;
   the page's own camera reading a code from a fake video feed; the release prompt's
   rules; relay selection on screen; and that the page asks nothing of the network

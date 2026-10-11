@@ -18,13 +18,25 @@ import { WebSocketServer } from 'ws';
  * @property {string} [rejectWrites]   Refuse every EVENT with this message, e.g. "blocked: members only".
  * @property {number[]} [rejectKinds]  Refuse these kinds.
  * @property {'write'|'read'|'both'} [authRequired]  Demand NIP-42 before EVENT, REQ, or both.
- * @property {boolean} [recipientOnly] Serve kind 1059 only to the authenticated p-tagged key (NIP-17).
+ * @property {boolean} [recipientOnly] Serve gift wraps (1059, 21059) only to the authenticated p-tagged key (NIP-17).
  * @property {number} [maxEventBytes]  Refuse events whose JSON is longer than this.
  * @property {boolean} [swallow]       Say OK, then never deliver to anyone.
  * @property {boolean} [silent]        Accept the socket and answer nothing at all.
  * @property {number} [delayMs]        Wait this long before delivering an event to subscribers.
  * @property {object|false} [nip11]    The NIP-11 document; false to answer 404.
+ * @property {'live'|'strfry'} [ephemeral]  What happens to an ephemeral event (kinds 20000-29999):
+ *   'live' (the default, as ditto and snort.social behave) delivers it to whoever is
+ *   subscribed right now and keeps nothing, so a repeat of the same id is delivered
+ *   again; 'strfry' (as strfry 1.x behaves by default) keeps it EPHEMERAL_KEEP_SECONDS and
+ *   serves it to later subscriptions, answers a repeat of an id it holds with
+ *   "duplicate:" and delivers nothing, and refuses one whose created_at is more than
+ *   EPHEMERAL_MAX_AGE_SECONDS old.
  */
+
+const EPHEMERAL_KEEP_SECONDS = 300;
+const EPHEMERAL_MAX_AGE_SECONDS = 60;
+const GIFT_WRAPS = [1059, 21059];
+const isEphemeral = (kind) => kind >= 20000 && kind < 30000;
 
 function matches(filter, event) {
   if (filter.ids && !filter.ids.includes(event.id)) return false;
@@ -46,8 +58,23 @@ export async function startRelay({ port = 0, host = '127.0.0.1', behaviour = {} 
   /** @type {Behaviour} */
   let how = { ...behaviour };
   const stored = [];
+  /** Every event accepted, stored or not, for a test to look inside. */
+  const received = [];
+  /** Ephemeral events held in 'strfry' mode, with when each lapses. */
+  const held = new Map();
+  /** The order events arrived in, to break ties between equal created_at. */
+  const arrival = new Map();
+  /** How many subscriptions each event id has been sent to, live or from storage. */
+  const deliveries = new Map();
   const sockets = new Set();
   const stats = { connections: 0, events: 0, accepted: 0, rejected: 0, reqs: 0, auths: 0 };
+  const now = () => Math.floor(Date.now() / 1000);
+  const delivered = (event) => deliveries.set(event.id, (deliveries.get(event.id) ?? 0) + 1);
+  const heldNow = () => {
+    for (const [id, h] of held) if (h.until <= now()) held.delete(id);
+    return [...held.values()].map((h) => h.event);
+  };
+  const hidden = (client, event) => how.recipientOnly && GIFT_WRAPS.includes(event.kind) && !client.authed.has(tag(event, 'p'));
 
   const http = createServer((req, res) => {
     const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET' };
@@ -102,17 +129,29 @@ export async function startRelay({ port = 0, host = '127.0.0.1', behaviour = {} 
         if (how.rejectKinds?.includes(event.kind)) return refuse('blocked: kind not accepted here');
         if (how.maxEventBytes && JSON.stringify(event).length > how.maxEventBytes) return refuse('invalid: event too large');
         if (event.kind === 22242) return refuse('invalid: auth events are not published');
+        const ephemeral = isEphemeral(event.kind);
+        if (ephemeral && how.ephemeral === 'strfry') {
+          if (now() - event.created_at > EPHEMERAL_MAX_AGE_SECONDS) return refuse('invalid: ephemeral event expired');
+          if (heldNow().some((e) => e.id === event.id)) {
+            stats.accepted++;
+            return send(['OK', event.id, true, 'duplicate: have this event']);
+          }
+        }
         stats.accepted++;
+        arrival.set(event.id, arrival.size);
+        received.push(event);
         send(['OK', event.id, true, '']);
         if (how.swallow) return;
-        const ephemeral = event.kind >= 20000 && event.kind < 30000;
         if (!ephemeral && !stored.some((e) => e.id === event.id)) stored.push(event);
+        if (ephemeral && how.ephemeral === 'strfry') held.set(event.id, { event, until: now() + EPHEMERAL_KEEP_SECONDS });
         const deliver = () => {
           for (const other of sockets) {
             for (const [subId, filters] of other.subs) {
               if (!filters.some((f) => matches(f, event))) continue;
-              if (how.recipientOnly && event.kind === 1059 && !other.authed.has(tag(event, 'p'))) continue;
-              other.ws.readyState === 1 && other.ws.send(JSON.stringify(['EVENT', subId, event]));
+              if (hidden(other, event)) continue;
+              if (other.ws.readyState !== 1) continue;
+              other.ws.send(JSON.stringify(['EVENT', subId, event]));
+              delivered(event);
             }
           }
         };
@@ -128,10 +167,13 @@ export async function startRelay({ port = 0, host = '127.0.0.1', behaviour = {} 
         }
         client.subs.set(subId, filters);
         for (const filter of filters) {
-          let found = stored.filter((e) => matches(filter, e));
-          if (how.recipientOnly) found = found.filter((e) => e.kind !== 1059 || client.authed.has(tag(e, 'p')));
-          found.sort((x, y) => y.created_at - x.created_at);
-          for (const e of found.slice(0, filter.limit ?? 500)) send(['EVENT', subId, e]);
+          const found = [...stored, ...heldNow()].filter((e) => matches(filter, e) && !hidden(client, e));
+          // Newest first, as relays answer: a client cannot count on hearing a session in order.
+          found.sort((x, y) => y.created_at - x.created_at || (arrival.get(y.id) ?? -1) - (arrival.get(x.id) ?? -1));
+          for (const e of found.slice(0, filter.limit ?? 500)) {
+            send(['EVENT', subId, e]);
+            delivered(e);
+          }
         }
         return send(['EOSE', subId]);
       }
@@ -151,6 +193,8 @@ export async function startRelay({ port = 0, host = '127.0.0.1', behaviour = {} 
     port: actual,
     stats,
     stored,
+    received,
+    deliveries,
     /** Replace the behaviour while running. */
     set(next) {
       how = { ...next };

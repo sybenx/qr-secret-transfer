@@ -1,12 +1,22 @@
 // Sealing and gift-wrapping (spec §11.4).
 //
 // Every QRST message is an unsigned rumor, sealed (kind 13, signed by the sending
-// burner, NIP-44 to the recipient burner) and gift-wrapped (kind 1059, a random
-// one-time signing key, `p` tag set to the recipient burner). There are no exceptions.
+// burner, NIP-44 to the recipient burner) and gift-wrapped (kind 21059, NIP-59's
+// ephemeral gift wrap: a random one-time signing key, `p` tag set to the recipient
+// burner). There are no exceptions.
+//
+// Kind 21059 rather than 1059: relays treat 1059 as a stored direct message and keep
+// serving it after it lapses, while a relay MUST NOT store 21059. The price is that a
+// wrap reaches only the subscribers connected when it is published, so the host
+// re-sends what is outstanding (§11.5, pool.ts), each time in a fresh wrap around the
+// same seal: see `giftWrap`.
 //
 // Two departures from NIP-59, both required by §11.4:
 //   - every timestamp is the true current time, never a randomised past value;
-//   - the wrap carries a NIP-40 `expiration` tag of now + 600.
+//   - the wrap carries a NIP-40 `expiration` tag of now + 600. NIP-40 says expiration
+//     does not apply to ephemeral events, so on a relay that honours 21059 it costs
+//     nothing; it is kept for a relay that does not treat 21059 as ephemeral and
+//     stores it, which then still has a reason to drop it.
 
 import { isHex32, wipe } from './bytes.ts';
 import { KINDS, SESSION_SECONDS } from './constants.ts';
@@ -42,13 +52,17 @@ export function buildRumor(input: RumorInput, senderPub: string, now: number): R
   });
 }
 
-/** Seals a rumor to `recipientPub` and wraps the seal. Returns the kind 1059 event to publish. */
+/** Seals a rumor to `recipientPub` and wraps the seal. Returns the kind 21059 event to publish. */
 export function wrap(r: Rumor, senderSecret: Uint8Array, recipientPub: string, env: Env): NostrEvent {
+  return giftWrap(seal(r, senderSecret, recipientPub, env), recipientPub, env);
+}
+
+/** The kind 13 seal: the rumor, NIP-44 to `recipientPub`, signed by the sending burner. */
+export function seal(r: Rumor, senderSecret: Uint8Array, recipientPub: string, env: Env): NostrEvent {
   if (!isHex32(recipientPub)) throw new Error('wrap: bad recipient');
   const now = env.now();
-
   const sealKey = conversationKey(senderSecret, recipientPub);
-  const seal = sign(
+  const sealed = sign(
     {
       pubkey: publicKey(senderSecret),
       created_at: now,
@@ -60,7 +74,22 @@ export function wrap(r: Rumor, senderSecret: Uint8Array, recipientPub: string, e
     env.random,
   );
   wipe(sealKey);
+  return sealed;
+}
 
+/**
+ * Wraps a seal for `recipientPub` under a fresh one-time key, timestamped now.
+ *
+ * A re-send calls this again on the seal it already has. Every call gives a new event
+ * id and a current `created_at`, which a relay needs: some answer "duplicate" to an
+ * id they have seen and deliver nothing, and some refuse an ephemeral event more than
+ * a minute old. The seal needs no burner, so a message can go again after the
+ * session has wiped its key; the rumor inside is unchanged, and the recipient
+ * recognises it by the rumor's id.
+ */
+export function giftWrap(sealed: NostrEvent, recipientPub: string, env: Env): NostrEvent {
+  if (!isHex32(recipientPub)) throw new Error('wrap: bad recipient');
+  const now = env.now();
   const oneTime = generateSecretKey(env.random);
   const wrapKey = conversationKey(oneTime, recipientPub);
   const wrapped = sign(
@@ -72,7 +101,7 @@ export function wrap(r: Rumor, senderSecret: Uint8Array, recipientPub: string, e
         ['p', recipientPub],
         ['expiration', String(now + SESSION_SECONDS)],
       ],
-      content: encrypt(JSON.stringify(seal), wrapKey, env.random(32)),
+      content: encrypt(JSON.stringify(sealed), wrapKey, env.random(32)),
     },
     oneTime,
     env.random,

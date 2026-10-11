@@ -1,4 +1,5 @@
-import { nip59 } from 'nostr-tools';
+import { nip59, verifyEvent } from 'nostr-tools';
+import { decrypt as nip44Decrypt, getConversationKey } from 'nostr-tools/nip44';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MAX_PAYLOAD,
@@ -13,6 +14,8 @@ import {
   publicKey,
   sign,
   unwrap,
+  giftWrap,
+  seal,
   verify,
   wrap,
 } from '../src/core/index.ts';
@@ -37,10 +40,11 @@ describe('seal and gift wrap (§11.4)', () => {
     expect(opened.rumor.pubkey).toBe(aPub);
   });
 
-  it('wrap is kind 1059 from a one-time key, addressed by p tag, with true timestamps and an expiration', () => {
+  it('wrap is kind 21059 from a one-time key, addressed by p tag, with true timestamps and an expiration', () => {
     const { env, a, aPub, bPub } = pair('wrap-2');
     const w = wrap(buildRumor({ kind: KINDS.ACK }, aPub, env.now()), a, bPub, env);
-    expect(w.kind).toBe(1059);
+    // NIP-59 §4, the ephemeral gift wrap: a relay passes it on and does not store it.
+    expect(w.kind).toBe(21059);
     expect(verify(w)).toBe(true);
     expect(w.pubkey).not.toBe(aPub);
     expect(w.pubkey).not.toBe(bPub);
@@ -56,6 +60,22 @@ describe('seal and gift wrap (§11.4)', () => {
     const { env, a, aPub, bPub } = pair('wrap-3');
     const r = buildRumor({ kind: KINDS.ACK }, aPub, env.now());
     expect(wrap(r, a, bPub, env).pubkey).not.toBe(wrap(r, a, bPub, env).pubkey);
+  });
+
+  it('a re-send wraps the same seal afresh: new id, current time, same rumor, no burner needed (§11.5)', () => {
+    const { env, a, b, aPub, bPub } = pair('wrap-rewrap');
+    const r = buildRumor({ kind: KINDS.REVEAL, tags: [['nonce', '44'.repeat(32)]] }, aPub, env.now());
+    const sealed = seal(r, a, bPub, env);
+    const first = giftWrap(sealed, bPub, env);
+    a.fill(0); // the session has ended and wiped its burner
+    env.clock.advance(90); // past the age at which some relays refuse an ephemeral event
+    const again = giftWrap(sealed, bPub, env);
+    expect(again.id).not.toBe(first.id);
+    expect(again.pubkey).not.toBe(first.pubkey);
+    expect(again.created_at).toBe(first.created_at + 90);
+    expect(firstTag(again, 'expiration')).toBe(String(again.created_at + SESSION_SECONDS));
+    const [x, y] = [unwrap(first, b), unwrap(again, b)];
+    expect(x.ok && y.ok && x.rumor.id === y.rumor.id && y.rumor.pubkey === aPub).toBe(true);
   });
 
   it('is not openable by anyone but the recipient', () => {
@@ -116,16 +136,20 @@ describe('seal and gift wrap (§11.4)', () => {
   });
 
   it('interoperates with the NIP-59 implementation in nostr-tools, both ways', () => {
+    // nostr-tools wraps only as kind 1059, so the comparison is of the seal and the
+    // layers inside it, and of the outer layer's encryption; the kind is the one difference.
     const { env, a, b, aPub, bPub } = pair('wrap-8');
     const r = buildRumor({ kind: KINDS.HELLO, tags: [['commit', '22'.repeat(32)]] }, aPub, env.now());
     const ours = wrap(r, a, bPub, env);
-    const theirsOpened = nip59.unwrapEvent(ours, b);
+    expect(verifyEvent(ours)).toBe(true);
+    const ourSeal = JSON.parse(nip44Decrypt(ours.content, getConversationKey(b, ours.pubkey)));
+    const theirsOpened = nip59.unwrapEvent(nip59.createWrap(ourSeal, bPub), b);
     expect(theirsOpened.id).toBe(r.id);
     expect(theirsOpened.pubkey).toBe(aPub);
     expect(theirsOpened.kind).toBe(KINDS.HELLO);
 
-    const theirs = nip59.wrapEvent({ kind: KINDS.ACK, content: '', tags: [], created_at: env.now() }, a, bPub);
-    const opened = unwrap(theirs, b);
+    const theirSeal = nip59.createSeal(nip59.createRumor({ kind: KINDS.ACK, content: '', tags: [], created_at: env.now() }, a), a, bPub);
+    const opened = unwrap(giftWrap(theirSeal, bPub, env), b);
     expect(opened.ok).toBe(true);
     if (opened.ok) {
       expect(opened.rumor.kind).toBe(KINDS.ACK);

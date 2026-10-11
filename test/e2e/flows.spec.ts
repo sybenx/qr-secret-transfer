@@ -60,10 +60,11 @@ test('Flow A: the receiver shows a code, the sender pastes its link', async ({ b
   await expect(heading(phone)).toHaveText('Delivered');
   await shot(phone, 'a7-phone-delivered');
 
-  // What the relay was given: gift wraps and nothing readable.
-  expect(relay.stored.length).toBeGreaterThanOrEqual(5);
-  expect(relay.stored.every((e) => e.kind === 1059)).toBe(true);
-  const everything = JSON.stringify(relay.stored);
+  // What the relay was given: ephemeral gift wraps, nothing readable, and nothing it kept.
+  expect(relay.received.length).toBeGreaterThanOrEqual(5);
+  expect(relay.received.every((e) => e.kind === 21059)).toBe(true);
+  expect(relay.stored).toEqual([]);
+  const everything = JSON.stringify(relay.received);
   expect(everything).not.toContain(SECRET);
   expect(everything).not.toContain(Buffer.from(SECRET).toString('base64'));
   expect(everything).not.toContain(code);
@@ -135,7 +136,8 @@ test('a wrong code sends nothing; five end the session and block that code (§9.
   await expect(heading(phone)).toHaveText('The digits did not match five times');
   // The device that showed the code is not ended by this: it goes back to showing it (§13).
   await expect(heading(laptop)).toHaveText('Scan this with the device that has the secret');
-  expect(relay.stored.length).toBeLessThan(6); // HELLO, NONCE, REVEAL, ABORT: no payload
+  // HELLO, NONCE, REVEAL, ABORT, each perhaps more than once (§11.5), and no PAYLOAD.
+  expect(await phone.locator('#trace').textContent()).not.toContain('PAYLOAD');
 
   // The same code will not be tried again from this device for an hour.
   await phone.click('#again');

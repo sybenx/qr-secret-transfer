@@ -16,6 +16,7 @@ import {
   VERSION,
   buildUri,
   generateSecretKey,
+  giftWrap,
   isPrivateHost,
   relayPolicy,
   scannerRole,
@@ -112,12 +113,16 @@ export class Transfer<T> {
       filter: session.filter(),
       signAuth: (url, challenge) => session.signAuth(url, challenge),
       onEvent: (event) => {
+        const effects = session.receive(event);
+        // A repeat of a message already taken changes nothing, and is not shown crossing.
         const content = (event as { content?: unknown }).content;
-        if (typeof content === 'string' && session.view().phase !== 'ended') this.onCross(content, 'in');
-        this.apply(session.receive(event));
+        if (typeof content === 'string' && effects.some((e) => e.t !== 'trace')) this.onCross(content, 'in');
+        this.apply(effects);
       },
       onChange: () => this.emit(),
       ...(deps.net?.WebSocketImpl ? { WebSocketImpl: deps.net.WebSocketImpl } : {}),
+      ...(deps.timing?.resendMs ? { resendMs: deps.timing.resendMs } : {}),
+      ...(deps.timing?.finalMs ? { finalMs: deps.timing.finalMs } : {}),
     });
     this.timer = setInterval(() => this.apply(this.session.tick()), 1000);
   }
@@ -179,12 +184,14 @@ export class Transfer<T> {
   }
 
   private async findRelays(): Promise<void> {
-    const probe = this.session.probe();
-    this.pool.ignore(probe.id);
     const listed = await selectRelays({
       pool: this.pool,
       store: this.deps.store,
-      probe,
+      probe: () => {
+        const probe = this.session.probe();
+        this.pool.ignore(probe.id);
+        return probe;
+      },
       now: this.deps.env.now,
       onProgress: (progress) => {
         this.progress = progress;
@@ -299,6 +306,15 @@ export class Transfer<T> {
     this.apply(this.session.cancel());
   }
 
+  /**
+   * Re-sends what is outstanding and reconnects what is down, now. The pool does this
+   * by itself when the page comes back into view; a host with its own notion of
+   * "resumed" can call it too.
+   */
+  wake(): void {
+    this.pool.wake();
+  }
+
   /** Stops everything. Safe to call more than once. Does not wait for the network. */
   dispose(): void {
     if (this.disposed) return;
@@ -325,10 +341,21 @@ export class Transfer<T> {
     if (effects.length === 0) return;
     for (const e of effects) {
       switch (e.t) {
-        case 'publish':
-          this.pool.publish(e.event);
+        case 'publish': {
+          const { seal, to } = e;
+          this.pool.publish({
+            event: e.event,
+            again: () => giftWrap(seal, to, this.deps.env),
+            to,
+            kind: e.kind,
+            unanswered: e.unanswered,
+          });
           this.trace(e.label);
           this.onCross(e.event.content, 'out');
+          break;
+        }
+        case 'settled':
+          this.pool.settle(e.peer, e.kinds);
           break;
         case 'commit':
           this.value = e.value;
@@ -358,8 +385,9 @@ export class Transfer<T> {
       // A relay on a private network is not something to carry into later sessions.
       this.deps.store.noteLearned(this.params.relays.filter((url) => relayPolicy.loopback || !isPrivateHost(new URL(url).hostname)));
     }
-    // The last messages (an ACK, an ABORT) are still on their way out. Give them a moment.
-    void this.pool.drain(2500).then(() => this.pool.close());
+    // The last messages (an ACK, an ABORT) are still on their way out, and go out again
+    // a few times in case the peer is not listening at this moment.
+    void this.pool.windDown();
   }
 
   private emit(): void {

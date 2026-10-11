@@ -34,9 +34,13 @@ function showing() {
     onEvent: (e) => received.push(e),
   });
   pools.push(pool);
-  const probe = session.probe();
-  pool.ignore(probe.id);
-  return { session, pool, probe, received };
+  // One probe per relay tested, as a session makes them.
+  const makeProbe = () => {
+    const probe = session.probe();
+    pool.ignore(probe.id);
+    return probe;
+  };
+  return { session, pool, probe: makeProbe(), makeProbe, received };
 }
 
 describe('loopback test (§11.3a)', () => {
@@ -46,7 +50,9 @@ describe('loopback test (§11.3a)', () => {
     const r = await relay();
     expect(await once(r.url)).toEqual({ ok: true });
     // the probe really was the size of the profile's largest payload
-    const probe = r.stored.find((e: { kind: number }) => e.kind === KINDS.WRAP);
+    // Ephemeral: the relay passed it on and kept nothing.
+    expect(r.stored).toEqual([]);
+    const probe = r.received.find((e) => e.kind === KINDS.WRAP);
     expect(JSON.stringify(probe).length).toBeGreaterThan(6500);
   });
 
@@ -60,7 +66,7 @@ describe('loopback test (§11.3a)', () => {
   });
 
   it('fails a relay that does not accept gift wraps', async () => {
-    const r = await relay({ rejectKinds: [1059] });
+    const r = await relay({ rejectKinds: [KINDS.WRAP] });
     expect((await once(r.url)).reason).toMatch(/^refused: blocked/);
   });
 
@@ -134,12 +140,12 @@ function store(seeds: string[] = [], adopter: string[] = []) {
 }
 
 async function select(s: Store, extra: { hints?: string[] } = {}) {
-  const { pool, probe } = showing();
+  const { pool, makeProbe } = showing();
   const seen: RelayProgress[][] = [];
   const listed = await selectRelays({
     pool,
     store: s,
-    probe,
+    probe: makeProbe,
     now: env.now,
     onProgress: (p) => seen.push(p),
     timing,
@@ -217,9 +223,9 @@ describe('relay selection (§11.3a)', () => {
       ),
     );
     const s = store([readOnlySeed.url]);
-    const { pool, probe } = showing();
+    const { pool, makeProbe } = showing();
     const listed = await selectRelays({
-      pool, store: s, probe, now: env.now, onProgress: () => {}, timing, net: { allowLoopbackDiscovery: true },
+      pool, store: s, probe: makeProbe, now: env.now, onProgress: () => {}, timing, net: { allowLoopbackDiscovery: true },
     });
     expect(listed).toEqual([good.url]);
     // and next time it is simply a relay that passed here before
@@ -249,8 +255,8 @@ describe('relay selection (§11.3a)', () => {
   it('forgets nothing when nothing passes: that is more likely this device than every relay', async () => {
     const s = store([], []);
     s.notePass(DEAD, 'learned');
-    const { pool, probe } = showing();
-    const done = selectRelays({ pool, store: s, probe, now: env.now, onProgress: () => {}, timing });
+    const { pool, makeProbe } = showing();
+    const done = selectRelays({ pool, store: s, probe: makeProbe, now: env.now, onProgress: () => {}, timing });
     await new Promise((resolve) => setTimeout(resolve, 1300));
     pool.close();
     expect(await done).toEqual([]);
@@ -270,13 +276,13 @@ describe('NIP-66 ranking', () => {
     const ranked = rankDiscovered(
       [
         event('wss://paid.example', [['R', 'payment']]),
-        event('wss://nowraps.example', [['k', '!1059']]),
+        event('wss://nowraps.example', [['k', '!21059']]),
         event('wss://tor.example', [['n', 'tor']]),
         event('wss://abcdef.onion'),
         event('ws://plain.example'),
         event('wss://stale.example', [], 40 * 24 * 3600),
         event('wss://plain.example'),
-        event('wss://good.example', [['R', '!auth'], ['R', '!payment'], ['k', '1059'], ['rtt-open', '120']]),
+        event('wss://good.example', [['R', '!auth'], ['R', '!payment'], ['k', '21059'], ['rtt-open', '120']]),
         event('wss://two.example', [['R', '!payment']], 0, 'bb'.repeat(32)),
         event('wss://two.example', [['R', '!payment']], 0, 'cc'.repeat(32)),
         { not: 'an event' },

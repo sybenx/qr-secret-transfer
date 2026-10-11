@@ -120,7 +120,7 @@ test('no code: a second device answering stops everything, on every device', asy
 
   for (const page of [laptop, stranger, phone]) await expect(heading(page)).toHaveText('Two devices answered the QR code');
   await shot(laptop, 'c4-laptop-second-responder');
-  expect(JSON.stringify(relay.stored)).not.toContain(SECRET);
+  expect(JSON.stringify(relay.received)).not.toContain(SECRET);
 });
 
 test('the stricter device decides: a receiver set to type overrides a sender set to no code', async ({ browser }) => {
