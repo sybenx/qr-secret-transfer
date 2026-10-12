@@ -8,6 +8,8 @@ and that cannot read it.
 **Live demo: <https://sybenx.github.io/qr-secret-transfer/>** ·
 [Specification](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md)
 
+Questions or breakage reports: nostr:npub175rnagjgxtvwvfrdytkqkkn4h062zf2cuwkx0jc8xc9nga895s8qgsef5g
+
 This repository is two things:
 
 - **A live demo and landing page** (`docs/`, built from `src/demo/`). It moves a short
