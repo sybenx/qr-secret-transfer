@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Notes on the old storage and threshold-signing specs
+    url: https://github.com/sybenx/nostr-key-management
+    about: NOSTR_KEY_MANAGEMENT.md and TIERS.md are archived there and not maintained. Reports about QRST or its profiles belong here.

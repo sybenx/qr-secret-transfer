@@ -56,7 +56,7 @@
       <a href="#levels">Checking</a>
       <a href="#limits">What it stops</a>
       <a href="#build">Build with it</a>
-      <a href="https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md">Specification</a>
+      <a href="https://github.com/sybenx/qr-secret-transfer/blob/main/QR_SECRET_TRANSFER.md">Specification</a>
     </nav>
   </header>
 
@@ -187,9 +187,10 @@
       <p>QRST carries; it does not care what. What moves is defined by a profile: a short name, a size limit, a check that what arrived is the right kind of thing, a one-line summary a person can recognise, and the words the sending device uses before it lets go. This demo’s profile is <code>qrst-demo-text</code>. A login session, an API key or a signing key would each be another.</p>
       <p>The transport is public Nostr relays, with messages sealed using NIP-44 and NIP-59. No Nostr account is involved: both devices use keys that live for one transfer. No relay is fixed, either. Before a device shows a QR code it sends itself a sealed message through each relay it knows, and names only the ones that brought it back.</p>
       <ul class="links">
-        <li><a href="https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md">Read the specification</a>, a draft. Its event kinds are provisional.</li>
-        <li><a href="https://github.com/sybenx/nostr-key-management/issues/new?template=spec-issue.yml">Report a problem with the specification</a>: an ambiguity, a suspected error or a design disagreement. <a href="https://github.com/sybenx/nostr-key-management/blob/main/SPEC_ISSUES.md">Resolved so far</a>.</li>
-        <li><a href="https://github.com/sybenx/nostr-key-management/tree/main/vectors">Test vectors</a> for the five digits, which this demo reproduces.</li>
+        <li><a href="https://github.com/sybenx/qr-secret-transfer/blob/main/QR_SECRET_TRANSFER.md">Read the specification</a>, a draft. Its event kinds are provisional.</li>
+        <li><a href="https://github.com/sybenx/qr-secret-transfer/tree/main/profiles">Profiles</a>: a Nostr key, a FROST share, and a template for your own kind of secret.</li>
+        <li><a href="https://github.com/sybenx/qr-secret-transfer/issues/new?template=spec-issue.yml">Report a problem with the specification</a>: an ambiguity, a suspected error or a design disagreement. <a href="https://github.com/sybenx/qr-secret-transfer/blob/main/SPEC_ISSUES.md">Resolved so far</a>.</li>
+        <li><a href="https://github.com/sybenx/qr-secret-transfer/tree/main/vectors">Test vectors</a> for the five digits, which this demo reproduces.</li>
         <li><a href="https://github.com/sybenx/qr-secret-transfer">Source</a>, and <a href="https://github.com/sybenx/qr-secret-transfer/issues">bugs in this demo</a>. The protocol core is separate from this page and has no dependency on a browser.</li>
       </ul>
       <p>Neither the specification nor this software has been audited. Review is more useful than deployment at this stage.</p>

@@ -1,0 +1,66 @@
+name: Problem with a specification
+description: An ambiguity, a suspected error, or a design disagreement in the QRST specification or one of its profiles.
+title: "§<section>: <short title>"
+labels: ["spec"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for pressure-testing the spec. A section number and a proposed fix are what make a report actionable, so both are required.
+
+        Settled reports are recorded in [SPEC_ISSUES.md](https://github.com/sybenx/qr-secret-transfer/blob/main/SPEC_ISSUES.md), which also lists what has already been resolved. Please check it first.
+  - type: dropdown
+    id: document
+    attributes:
+      label: Document
+      options:
+        - QR_SECRET_TRANSFER.md (QRST)
+        - profiles/nostr-nsec.md
+        - profiles/frost-share.md
+        - profiles/example-sync-key.md
+        - A test vector
+    validations:
+      required: true
+  - type: input
+    id: section
+    attributes:
+      label: Section
+      description: The section it is filed against, and any others it touches.
+      placeholder: "§9.2 (and §13)"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      description: |
+        Ambiguity: two readings that both work but don't interoperate, or a case the text doesn't cover.
+        Suspected error: a requirement that doesn't achieve what the text claims, or that another section breaks.
+        Design disagreement: the text is clear and consistent, and you'd have chosen differently. Several weak-looking defaults are argued for in the document, so please engage with that argument.
+      options:
+        - Ambiguity
+        - Suspected error
+        - Design disagreement
+    validations:
+      required: true
+  - type: textarea
+    id: says
+    attributes:
+      label: What the specification says
+      description: Quote or cite it closely enough that a reader can find it without searching.
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong or unclear
+      description: The concrete circumstances under which it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+      description: The change you would make, in the specification's own normative language where you can. "This should be clarified" is not a fix.
+    validations:
+      required: true

@@ -1,0 +1,59 @@
+{
+  "description": "The frost-share QRST payload (bfshare1... + ' ' + bfgroup1...) at n_members = 32, the largest group size whose encoded pair still fits P1's default 2048-byte payload ceiling. t = 2. Generated with a seeded (non-random) trusted dealer purely so this file is a reproducible fixture -- a real dealer MUST use fresh randomness for every coefficient (profiles/frost-share.md).",
+  "curve": "secp256k1",
+  "threshold": 2,
+  "n_members": 32,
+  "dealer": {
+    "note": "f(x) = a0 + a1*x mod n, seeded for reproducibility only",
+    "a0_seed_label": "a0-nsec-fixture",
+    "a1_seed_label": "a1-coefficient-fixture"
+  },
+  "group_pk_hex": "0279c9e6dbb232ade8b9d8e57bdf4de580cb41faa0671c9d6532dab034303356e3",
+  "share": {
+    "idx": 1,
+    "seckey_hex": "e391330ced8e947205b6003437419a04b8665946d33a3ad54cab1ca859f4cdf8"
+  },
+  "encoded": {
+    "bfshare1": "bfshare1qqqqqq0rjyesemvwj3eqtdsqxsm5rxsyhpn9j3kn8gad2n9trj59naxdlqwdw8c7",
+    "bfgroup1": "bfgroup1qfuunekmkge2m69emrjhhh6dukqvks065pn3e8t9xtdtqdpsxdtwxqqqqqpqqqqqqypxacqytaf4tnktvvrnjjq5rksxmnys9zw0dtz4waldrcklygaffwcqqqqqyqmql6n5wxg5jcguj2w7pg4d5dg42w4tje3kgwvhflmrw4eufstdtcqqqqqrq03esvjctugmncawzyhj2qgc6l89eragmh32363dskgq2kqp2cm6cqqqqqzq8wegazeh2uqxzkn4vu4evlftm8es4389m90u2nyuc57vthm2cjrtqqqqqpgrqu4hzxke4pk2zmmdtw87tg0g8te40j0y7tf2gh6aucd0jwg9lqlsqqqqqcpsevfedypmgn3waegd7r4svluvawwlyka9qsmvhzjfl64rmgd9uxgqqqqqwqewntmat75rdmvj8zmz98f3cnejwmytwtuffuwuesju8rs8vr8tzyqqqqqgqgqtuz8ftl0rhpzsarx3rr2hjc3hxwyy8t0qhdmhxr0yhgzdy55p7qqqqqys9pnnql2v3s6kgxdqr59xzzkz8smgc79ykacy6yzd8d6nj47qjv5pqqqqqzszqshtpdjtv48jty8rgzzj7nrnlda5egc94j9pscshy49dfzdqd9xqqqqqpvplav4dnvwn02rmyn65lf5ujhejvzu58e8ufkg8asdq677yy2s593cqqqqqcqn60m7dwnfuefqrf4c437ukw8vc4mhxru5hha5w3rrkd8rj396fhvqqqqqdqgvt7hh2vv9e4ezrfmcvvj56u8ja96m6glv94w3rvvv98nn8lhh2xqqqqq8q8fm050svqjdh6h047p8n2u4j4wd6ncl2wnz5qd6zwg4ddsfmkj23qqqqqrcrtf9hpcgvex3q3a705xx7dejf2af842h43xaj299meyzrckmn5azqqqqqzqphr3l2zew5y064ssslecpnwags8hx55rl6qsenfvlzs8grwl4amxqqqqqpzq30rw8nn5fdf3jvsw7zqcu6k3uy6s9jaf43c52y9jnud6rlvq57ssqqqqqjqddck03kdgapqfhvk5d6vptp93svdz2xywfzty092vk828suurlejqqqqqfs8jszx2rlpkxwd9peym4yj60jhg44hmdlx6rek897r43qckj06kp3qqqqq9qz2tvx53r62uyqjtsv9rlfwld7llpc3hgp05c569w23m7jwuelrehsqqqqz5pxxxayjzl9x9nez7a35xsqtd58f7jrtpqh6plttue200e2ryfhtcgqqqqpvqmv8tpyncxqjtmm6aacy2w9qc5rfcvkl7pvng6jctnv8hzvx6frpyqqqqqhqf7jg67fwn0fkz9j3qha562wll5r7ekkqvmpzduu5l5t7avcfjncyqqqqqvqx4v3atj28sg2w465najxrv4ufnmcwmhr0yapwwej0deatvfvq4a6qqqqqxgzyt9kat7r4e9xenmg0mw5enwsffupyc65nqytrtucglvytd6l5atsqqqqrgpuqze6dyv55vfq8cuhhpm7ugktmeff30rmctvzu24cdqwrkfpec4sqqqqpkqaeqzasqy53d87lc84pfgt88flvlvj8r8xwmz8m93r4w5v8m6vd5gqqqqquq2jtlqlq6e0nwtzd7prs6adzzkl4326ltl26r6zhu333k05f74zxcqqqqqwsx22ldn3a55nq98nh9slraw8360zx53ah8tw99helwqdahnutscpaqqqqq8sry9grqhjrrwll79453umrh8q6y7jlmyljxaa2r7sl53rguv882zusqqqqrupyv4nxg8wj4gcj3q6lhjch5rmp3lxkx6afaq26fx946t0lyuu35uqqqqqzqqa2mdxlp22t08l88kylj92evr22gw78tv6ns4jxtsfeszrn8jcja5l4j5xw",
+    "bfshare1_len_chars": 72,
+    "bfgroup1_len_chars": 1968
+  },
+  "p4_check": {
+    "description": "share_idx * G == members[idx].pubkey, per bifrost's group package shape (per-member points, not Feldman coefficient commitments)",
+    "holds": true
+  },
+  "qrst_payload": {
+    "text": "bfshare1qqqqqq0rjyesemvwj3eqtdsqxsm5rxsyhpn9j3kn8gad2n9trj59naxdlqwdw8c7 bfgroup1qfuunekmkge2m69emrjhhh6dukqvks065pn3e8t9xtdtqdpsxdtwxqqqqqpqqqqqqypxacqytaf4tnktvvrnjjq5rksxmnys9zw0dtz4waldrcklygaffwcqqqqqyqmql6n5wxg5jcguj2w7pg4d5dg42w4tje3kgwvhflmrw4eufstdtcqqqqqrq03esvjctugmncawzyhj2qgc6l89eragmh32363dskgq2kqp2cm6cqqqqqzq8wegazeh2uqxzkn4vu4evlftm8es4389m90u2nyuc57vthm2cjrtqqqqqpgrqu4hzxke4pk2zmmdtw87tg0g8te40j0y7tf2gh6aucd0jwg9lqlsqqqqqcpsevfedypmgn3waegd7r4svluvawwlyka9qsmvhzjfl64rmgd9uxgqqqqqwqewntmat75rdmvj8zmz98f3cnejwmytwtuffuwuesju8rs8vr8tzyqqqqqgqgqtuz8ftl0rhpzsarx3rr2hjc3hxwyy8t0qhdmhxr0yhgzdy55p7qqqqqys9pnnql2v3s6kgxdqr59xzzkz8smgc79ykacy6yzd8d6nj47qjv5pqqqqqzszqshtpdjtv48jty8rgzzj7nrnlda5egc94j9pscshy49dfzdqd9xqqqqqpvplav4dnvwn02rmyn65lf5ujhejvzu58e8ufkg8asdq677yy2s593cqqqqqcqn60m7dwnfuefqrf4c437ukw8vc4mhxru5hha5w3rrkd8rj396fhvqqqqqdqgvt7hh2vv9e4ezrfmcvvj56u8ja96m6glv94w3rvvv98nn8lhh2xqqqqq8q8fm050svqjdh6h047p8n2u4j4wd6ncl2wnz5qd6zwg4ddsfmkj23qqqqqrcrtf9hpcgvex3q3a705xx7dejf2af842h43xaj299meyzrckmn5azqqqqqzqphr3l2zew5y064ssslecpnwags8hx55rl6qsenfvlzs8grwl4amxqqqqqpzq30rw8nn5fdf3jvsw7zqcu6k3uy6s9jaf43c52y9jnud6rlvq57ssqqqqqjqddck03kdgapqfhvk5d6vptp93svdz2xywfzty092vk828suurlejqqqqqfs8jszx2rlpkxwd9peym4yj60jhg44hmdlx6rek897r43qckj06kp3qqqqq9qz2tvx53r62uyqjtsv9rlfwld7llpc3hgp05c569w23m7jwuelrehsqqqqz5pxxxayjzl9x9nez7a35xsqtd58f7jrtpqh6plttue200e2ryfhtcgqqqqpvqmv8tpyncxqjtmm6aacy2w9qc5rfcvkl7pvng6jctnv8hzvx6frpyqqqqqhqf7jg67fwn0fkz9j3qha562wll5r7ekkqvmpzduu5l5t7avcfjncyqqqqqvqx4v3atj28sg2w465najxrv4ufnmcwmhr0yapwwej0deatvfvq4a6qqqqqxgzyt9kat7r4e9xenmg0mw5enwsffupyc65nqytrtucglvytd6l5atsqqqqrgpuqze6dyv55vfq8cuhhpm7ugktmeff30rmctvzu24cdqwrkfpec4sqqqqpkqaeqzasqy53d87lc84pfgt88flvlvj8r8xwmz8m93r4w5v8m6vd5gqqqqquq2jtlqlq6e0nwtzd7prs6adzzkl4326ltl26r6zhu333k05f74zxcqqqqqwsx22ldn3a55nq98nh9slraw8360zx53ah8tw99helwqdahnutscpaqqqqq8sry9grqhjrrwll79453umrh8q6y7jlmyljxaa2r7sl53rguv882zusqqqqrupyv4nxg8wj4gcj3q6lhjch5rmp3lxkx6afaq26fx946t0lyuu35uqqqqqzqqa2mdxlp22t08l88kylj92evr22gw78tv6ns4jxtsfeszrn8jcja5l4j5xw",
+    "bytes": 2041,
+    "chars": 2041
+  },
+  "chain": {
+    "rumor_event_bytes": 2250,
+    "inner_nip44_ciphertext_b64_len": 3504,
+    "seal_event_bytes": 3847,
+    "outer_nip44_ciphertext_b64_len": 5552,
+    "wrap_event_bytes": 5998,
+    "wrap_content_bytes": 5552,
+    "relay_EVENT_message_bytes": 6008,
+    "model": "QRST 1.6 \u00a711.4: PAYLOAD rumor kind 24405 with no tags, seal kind 13, ephemeral gift wrap kind 21059; computed by tools/payload_ceiling.py"
+  },
+  "p1_check": {
+    "payload_bytes": 2041,
+    "default_max_bytes": 2048,
+    "within_default_max": true,
+    "next_member_n33_payload_bytes": 2100,
+    "next_member_n33_within_default_max": false
+  },
+  "section_11_6_check": {
+    "content_bytes": 5552,
+    "nip11_example_max_content_length": 8196,
+    "within_nip11_example": true,
+    "wrap_event_bytes": 5998,
+    "strfry_max_event_size": 65536,
+    "within_strfry_max_event_size": true,
+    "relay_msg_bytes": 6008,
+    "strfry_max_websocket_payload_size": 131072,
+    "within_strfry_max_websocket_payload_size": true
+  }
+}
