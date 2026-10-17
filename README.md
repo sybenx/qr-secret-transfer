@@ -6,12 +6,17 @@ only then does the secret travel, sealed, over public relays that neither device
 and that cannot read it.
 
 **Live demo: <https://sybenx.github.io/qr-secret-transfer/>** ·
-[Specification](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md)
+[Specification](QR_SECRET_TRANSFER.md) · [Profiles](profiles/README.md)
 
 Questions or breakage reports: Nostr: [npub175rn…sef5g](https://njump.me/npub175rnagjgxtvwvfrdytkqkkn4h062zf2cuwkx0jc8xc9nga895s8qgsef5g)
 
-This repository is two things:
+This repository is three things:
 
+- **The specification**, [`QR_SECRET_TRANSFER.md`](QR_SECRET_TRANSFER.md), with the
+  [profiles](profiles/README.md) that say what kinds of secret it carries (a Nostr
+  key, a FROST share, or an app's own, such as a sync key for a game) and its
+  [test vectors](vectors/). The core mechanism knows nothing about what it moves; a
+  new kind of secret is a new profile, never a change to the specification.
 - **A live demo and landing page** (`docs/`, built from `src/demo/`). It moves a short
   piece of text between two devices. It is a static page: no server of its own, no
   analytics, nothing loaded from anywhere else, and no network activity until a
@@ -58,12 +63,12 @@ Three `<meta>` tags in `src/demo/index.html` are the configuration:
 | `qrst:seeds` | Replaces the starting relays this build ships. `content="none"` ships none. |
 | `qrst:discovery` | Relays to ask for NIP-66 discovery events. `content="none"` asks nobody extra. |
 
-Before publishing, set a canonical URL and the three GitHub links in
-`src/demo/index.html` to wherever the specification and this repository end up.
+Before publishing a copy elsewhere, set a canonical URL in `src/demo/index.html`,
+and its GitHub links if your copy of the specification lives somewhere else.
 
 ## What it implements
 
-The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md) 1.6-draft:
+The wire protocol of [`QR_SECRET_TRANSFER.md`](QR_SECRET_TRANSFER.md) 1.6-draft:
 
 - the commit-then-reveal exchange and five-digit code of §6, reproducing the
   specification's own vectors (`vectors/qrst-sas.json`);
@@ -96,14 +101,16 @@ the two devices' settings applies:
 | Confirm only (low) | consent only; a second responder ends the session | shows nothing | what can be revoked |
 
 Not implemented: the offline tier (§10), the local network path (§11.7, which a
-browser cannot do), the `frost://` carrier (§12.3), and reading the code by camera
-(§9.2 "capture").
+browser cannot do), profile URI schemes such as `frost://` (§12.3), reading the code
+by camera (§9.2 "capture"), and the published profiles. The demo carries only its
+own text profile, `qrst-demo-text` (`src/core/profile.ts`).
 
 1.5-draft was written from this implementation: every place 1.4 could be read two
-ways, or was wrong, is recorded under "Resolved" in the specification's
-[`SPEC_ISSUES.md`](https://github.com/sybenx/nostr-key-management/blob/main/SPEC_ISSUES.md). To report a new one,
-[open an issue on the specification](https://github.com/sybenx/nostr-key-management/issues/new?template=spec-issue.yml); a bug in this demo or its code goes
-in [this repository's issues](https://github.com/sybenx/qr-secret-transfer/issues).
+ways, or was wrong, is recorded under "Resolved" in
+[`SPEC_ISSUES.md`](SPEC_ISSUES.md). To report a new one,
+[use the specification form](https://github.com/sybenx/qr-secret-transfer/issues/new?template=spec-issue.yml);
+a bug in this demo or its code is a
+[plain issue](https://github.com/sybenx/qr-secret-transfer/issues/new).
 
 ## Relays
 
@@ -123,6 +130,9 @@ memory up from discovery in the background about once a day.
 ## Layout
 
 ```
+QR_SECRET_TRANSFER.md   the specification
+profiles/     what kinds of secret it carries, one file each
+SPEC_ISSUES.md  everything settled about the specification so far
 src/core/     pure protocol: no I/O, injected randomness and clock
   sas.ts        the commitment and the five digits (§6)
   nip44.ts      NIP-44 v2
@@ -137,9 +147,10 @@ src/web/      browser adapters
   store.ts      what a device remembers: relays, throttle, transfer log
   transfer.ts   one transfer end to end, headless
 src/demo/     the page
-tools/        a local relay with fault injection, a static server
+tools/        a local relay with fault injection, a static server, and
+              payload_ceiling.py, which computes the wire size of a payload
 test/         unit, integration and browser tests
-vectors/      the specification's §6 vectors
+vectors/      the specification's test vectors
 docs/         the built site
 ```
 
@@ -178,7 +189,7 @@ npm run check        # typecheck, unit and integration tests, build, browser tes
 Two independent reviews of the code against the specification were run before this
 was handed over, one of the core and one of the page. They found one serious fault
 (the pairing code could be ground: see "The contacting party gets more than one code
-per session" in [`SPEC_ISSUES.md`](https://github.com/sybenx/nostr-key-management/blob/main/SPEC_ISSUES.md)) and about twenty smaller ones. All are
+per session" in [`SPEC_ISSUES.md`](SPEC_ISSUES.md)) and about twenty smaller ones. All are
 fixed and have regression tests.
 
 ### What has not been tested
@@ -194,5 +205,6 @@ fixed and have regression tests.
 
 ## Licence
 
-MIT. The specification itself is CC0. The bundled libraries are MIT and the fonts are
+The code is MIT ([`LICENSE`](LICENSE)). The specification, its profiles and its
+test vectors are CC0 ([`LICENSE-SPEC`](LICENSE-SPEC)). The bundled libraries are MIT and the fonts are
 under the SIL Open Font License; their notices ship in `docs/`.
