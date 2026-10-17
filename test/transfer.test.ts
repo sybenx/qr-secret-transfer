@@ -1,7 +1,7 @@
 // Two devices, real WebSockets, a local relay: the whole stack below the UI.
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { type Env, demoText, parseUri } from '../src/core/index.ts';
+import { type Env, KINDS, demoText, parseUri } from '../src/core/index.ts';
 import { Store, Transfer, type TransferDeps, type TransferView } from '../src/web/index.ts';
 import { type Behaviour, type TestRelay, startRelay } from '../tools/test-relay.mjs';
 
@@ -90,12 +90,14 @@ describe('Flow A over a relay', () => {
   it('the relay never sees the secret, the code, or either burner', async () => {
     const r = await relay();
     const { receiver, params } = await runFlowA(device([r.url]), device([]));
-    const everything = JSON.stringify(r.stored);
+    const everything = JSON.stringify(r.received);
     expect(everything).not.toContain(SECRET);
     expect(everything).not.toContain(Buffer.from(SECRET).toString('base64'));
+    // every message is an ephemeral gift wrap, and the relay kept none of them
+    expect(r.received.every((e) => e.kind === KINDS.WRAP)).toBe(true);
+    expect(r.stored).toEqual([]);
     // the showing burner appears only as a recipient tag, never as an author
-    expect(r.stored.every((e) => e.kind === 1059)).toBe(true);
-    expect(r.stored.some((e) => e.pubkey === params.pub)).toBe(false);
+    expect(r.received.some((e) => e.pubkey === params.pub)).toBe(false);
     expect(receiver.view().value).toBe(SECRET);
   });
 

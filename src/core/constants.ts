@@ -1,12 +1,13 @@
 // Every number the specification fixes, in one place.
 //
-// The event kinds are PROVISIONAL (spec §11.4): chosen from the ephemeral range and
+// The message kinds are PROVISIONAL (spec §11.4): chosen from the ephemeral range and
 // checked free of collision, but not reserved by a NIP. They live here and nowhere
-// else so that a change is a one-line change.
+// else so that a change is a one-line change. SEAL and WRAP are NIP-59's; WRAP is its
+// ephemeral gift wrap (NIP-59 §4), which a relay delivers live and does not store.
 
 export const KINDS = {
   SEAL: 13,
-  WRAP: 1059,
+  WRAP: 21059,
   AUTH: 22242,
   HELLO: 24401,
   REQUEST: 24402,

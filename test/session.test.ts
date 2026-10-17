@@ -7,11 +7,14 @@ import {
   type Profile,
   SESSION_SECONDS,
   SLACK_SECONDS,
+  type Effect,
   buildRumor,
   demoText,
+  giftWrap,
   sas,
 } from '../src/core/index.ts';
-import { Net, committed, outcomeOf, records } from './net.ts';
+import { seededRandom } from './helpers.ts';
+import { Net, type Node, committed, outcomeOf, records } from './net.ts';
 
 const SECRET = 'sk-live-4f9a0c1d2e3b';
 
@@ -558,5 +561,42 @@ describe('text survives exactly', () => {
   it('a leading byte-order mark is not eaten', () => {
     const text = '\ufeffsecret';
     expect(demoText.check(demoText.encode(text))).toEqual({ ok: true, value: text });
+  });
+});
+
+describe('what goes out again (§11.5)', () => {
+  type Publish = Extract<Effect<string>, { t: 'publish' }>;
+  type Settled = Extract<Effect<string>, { t: 'settled' }>;
+  const published = (n: Node<string>) => n.effects.filter((e): e is Publish => e.t === 'publish');
+  const settled = (n: Node<string>) => n.effects.filter((e): e is Settled => e.t === 'settled').map((e) => [e.peer, e.kinds]);
+
+  it('each message is settled by the peer answering it, and only ACK and ABORT go unanswered', () => {
+    const { net, receiver, sender } = flowA();
+    net.run(sender, sender.session.enterCode(receiver.session.view().code!));
+    net.run(receiver, receiver.session.accept());
+    expect(outcomeOf(sender)).toBe('delivered');
+    // The Sender's HELLO is answered by the NONCE; its REVEAL and PAYLOAD only by the ACK.
+    expect(settled(sender)).toEqual([
+      [receiver.pub, [KINDS.HELLO, KINDS.REQUEST]],
+      [receiver.pub, [KINDS.HELLO, KINDS.REQUEST, KINDS.NONCE, KINDS.REVEAL, KINDS.PAYLOAD]],
+    ]);
+    // The Receiver's NONCE is answered by the REVEAL (and again by the PAYLOAD). Its ACK is answered by nothing.
+    expect(settled(receiver)).toEqual([
+      [sender.pub, [KINDS.HELLO, KINDS.REQUEST, KINDS.NONCE]],
+      [sender.pub, [KINDS.HELLO, KINDS.REQUEST, KINDS.NONCE, KINDS.REVEAL]],
+    ]);
+    expect(published(receiver).map((e) => [e.kind, e.unanswered])).toEqual([[KINDS.NONCE, false], [KINDS.ACK, true]]);
+    expect(published(sender).every((e) => e.to === receiver.pub && !e.unanswered)).toBe(true);
+  });
+
+  it('a re-sent message is taken once, and an ignored one settles nothing', () => {
+    const { net, receiver, sender } = flowA();
+    const hello = published(sender)[0]!;
+    const again = giftWrap(hello.seal, hello.to, { random: seededRandom('again'), now: net.clock.now });
+    expect(again.id).not.toBe(hello.event.id);
+    expect(receiver.session.receive(again)).toEqual([]);
+    // A sender never takes a PAYLOAD, so one from the Receiver says nothing about what it received.
+    const stray = buildRumor({ kind: KINDS.PAYLOAD, content: 'eA==' }, receiver.pub, net.clock.t);
+    expect(sender.session.receiveRumor(stray)).toEqual([]);
   });
 });

@@ -1,17 +1,27 @@
 // Relay transport for one session (spec §11.5).
 //
 // A RelayLink is one WebSocket to one relay, subscribed to wraps addressed to this
-// session's burner. A Pool is the set of links a session uses, with the two things
-// §11.5 requires of it: publishes go to every relay in parallel, and every message
-// published during the session is kept in an outbox and sent again whenever a socket
-// opens or a NIP-42 authentication succeeds.
+// session's burner. A Pool is the set of links a session uses, with what §11.5
+// requires of it: publishes go to every relay in parallel, and every message stays in
+// an outbox and goes out again until the peer has evidently received it.
+//
+// Wraps are ephemeral (kind 21059): a relay passes one to whoever is subscribed at
+// that moment and keeps nothing, or keeps it a few minutes at most. A peer whose
+// socket was down, whose tab was in the background, or whose relay wanted AUTH before
+// serving its subscription simply never sees it. So the outbox is not a replay log
+// but a retransmit loop: every few seconds, whenever a socket opens or authenticates,
+// and when the page comes back into view, each outstanding message goes out again in
+// a fresh wrap (new id, created_at now). A fresh wrap matters: some relays answer
+// "duplicate" to an id they still hold and deliver nothing, and some refuse an
+// ephemeral event more than a minute old. The peer recognises a repeat by the id of
+// the rumor inside, which does not change.
 
 import { type NostrEvent, verify } from '../core/index.ts';
 
 export type LinkState = 'connecting' | 'open' | 'closed';
 
 export interface PoolOptions {
-  /** The subscription filter (§11.5): kind 1059, p-tagged to the burner, since session start minus slack. */
+  /** The subscription filter (§11.5): kind 21059, p-tagged to the burner, since session start minus slack. */
   filter: Record<string, unknown>;
   /** Signs a NIP-42 authentication with the session's burner, never with anything longer-lived. */
   signAuth(url: string, challenge: string): NostrEvent;
@@ -20,6 +30,41 @@ export interface PoolOptions {
   onChange?(): void;
   log?(text: string): void;
   WebSocketImpl?: typeof WebSocket;
+  /** How often an outstanding message goes out again. Default RESEND_MS. */
+  resendMs?: number;
+  /** How long a message nothing will answer keeps going out. Default FINAL_RESEND_MS. */
+  finalMs?: number;
+}
+
+/** A message of the session, as the outbox keeps it. */
+export interface Outgoing {
+  /** The wrap as most recently sent. */
+  event: NostrEvent;
+  /** A fresh wrap of the same message: a new id and a current created_at. */
+  again?: () => NostrEvent;
+  /** The recipient burner, and the kind of the rumor inside: what `settle` matches on. */
+  to?: string;
+  kind?: number;
+  /**
+   * True for a message nothing will answer (an ACK, an ABORT): it goes out again for
+   * FINAL_RESEND_MS and then rests. Anything else goes out until it is settled or the
+   * session ends.
+   */
+  unanswered?: boolean;
+}
+
+/** An outstanding message goes out again this often (§11.5). */
+export const RESEND_MS = 3000;
+/**
+ * How long a message nothing will answer keeps going out: long enough for a peer that
+ * lost its socket to come back through its reconnect backoff, well inside the minute
+ * a Sender waits for an ACK.
+ */
+export const FINAL_RESEND_MS = 20_000;
+
+interface Entry extends Outgoing {
+  /** When it stops going out (ms since the epoch); undefined for as long as it is outstanding. */
+  until: number | undefined;
 }
 
 export interface Ack {
@@ -46,6 +91,9 @@ export class RelayLink {
   private authId: string | undefined;
   private authed = false;
   private attempt = 0;
+  /** A relay that answered "rate-limited" gets no timed re-sends until then (ms since the epoch). */
+  restUntil = 0;
+  private rests = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private closedByUs = false;
   /** Events for this relay alone: the loopback probe, until it has passed. */
@@ -120,8 +168,16 @@ export class RelayLink {
   }
 
   private republish(): void {
-    for (const event of this.pool.outbox) this.raw(['EVENT', event]);
+    this.pool.resend(this);
     for (const event of this.local) this.raw(['EVENT', event]);
+  }
+
+  /** The page came back into view: a socket that is down tries again now, not after its backoff. */
+  wake(): void {
+    if (this.closedByUs || this.state !== 'closed' || !this.reconnect) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.attempt = 0;
+    this.connect();
   }
 
   private authenticate(): void {
@@ -168,6 +224,12 @@ export class RelayLink {
           return;
         }
         this.acks.set(a, { ok, message: text });
+        if (ok) this.rests = 0;
+        else if (text.startsWith('rate-limited')) {
+          // Back off the timed re-sends to this relay (10 s, doubling to a minute); new
+          // messages still go out at once.
+          this.restUntil = Date.now() + Math.min(60_000, 10_000 * 2 ** this.rests++);
+        }
         if (!ok) {
           this.lastReason = text || 'refused';
           const wantsAuth = text.startsWith('auth-required') && !this.authed;
@@ -239,17 +301,29 @@ export interface LoopbackResult {
 }
 
 export class Pool {
-  readonly outbox: NostrEvent[] = [];
+  private readonly outbox: Entry[] = [];
   private readonly links = new Map<string, RelayLink>();
   private readonly seen = new Set<string>();
   private readonly ignored = new Set<string>();
   private readonly waiters = new Map<string, (echoed: boolean) => void>();
   private closed = false;
+  /** The session has ended; only its last messages are still going out. */
+  private ending = false;
+  private resendTimer: ReturnType<typeof setInterval> | undefined;
+  private readonly onVisible = () => {
+    if (globalThis.document?.visibilityState !== 'hidden') this.wake();
+  };
 
-  constructor(private readonly options: PoolOptions) {}
+  constructor(private readonly options: PoolOptions) {
+    // A phone that was locked, or a tab that was in the background, has missed whatever
+    // was published meanwhile and may have lost its sockets without being told.
+    globalThis.document?.addEventListener('visibilitychange', this.onVisible);
+    globalThis.addEventListener?.('online', this.onVisible);
+  }
 
+  /** True once the pool is closed, or winding down after its session ended. */
   get isClosed(): boolean {
-    return this.closed;
+    return this.closed || this.ending;
   }
 
   changed(): void {
@@ -281,11 +355,56 @@ export class Pool {
     return [...this.links.values()];
   }
 
-  /** Publishes to every relay in parallel and keeps the event for replay (§11.5). */
-  publish(event: NostrEvent): void {
+  /** Publishes to every relay in parallel and keeps the message to send again (§11.5). */
+  publish(message: Outgoing): void {
     if (this.closed) return;
-    this.outbox.push(event);
-    for (const link of this.links.values()) link.publish(event);
+    this.outbox.push({ ...message, until: message.unanswered ? Date.now() + (this.options.finalMs ?? FINAL_RESEND_MS) : undefined });
+    for (const link of this.links.values()) link.publish(message.event);
+    this.resendTimer ??= setInterval(() => this.tick(), this.options.resendMs ?? RESEND_MS);
+  }
+
+  /** The peer `to` has evidently received the messages of these kinds sent to it: stop sending them. */
+  settle(to: string, kinds: readonly number[]): void {
+    for (let i = this.outbox.length - 1; i >= 0; i--) {
+      const e = this.outbox[i]!;
+      if (e.to === to && e.kind !== undefined && kinds.includes(e.kind)) this.outbox.splice(i, 1);
+    }
+  }
+
+  /**
+   * Sends every message in the outbox again, in a fresh wrap, to one relay (a socket
+   * opened, or authenticated) or to all of them.
+   */
+  resend(only?: RelayLink): void {
+    if (this.closed) return;
+    const now = Date.now();
+    for (const e of this.outbox) if (e.until === undefined || now < e.until) this.again(e, only);
+  }
+
+  private again(e: Entry, only?: RelayLink, timed = false): void {
+    if (e.again) {
+      try {
+        e.event = e.again();
+      } catch {
+        return;
+      }
+    }
+    if (only) only.publish(e.event);
+    else for (const link of this.links.values()) if (!timed || Date.now() >= link.restUntil) link.publish(e.event);
+  }
+
+  /** The timed re-send: everything outstanding, and what nothing will answer while its time lasts. */
+  private tick(): void {
+    if (this.closed) return;
+    const now = Date.now();
+    for (const e of this.outbox) if (e.until === undefined || now < e.until) this.again(e, undefined, true);
+  }
+
+  /** Reconnects what is down and sends everything outstanding again, now. */
+  wake(): void {
+    if (this.closed) return;
+    for (const link of this.links.values()) link.wake();
+    this.resend();
   }
 
   /** An event id this pool must never hand to the session: a loopback probe. */
@@ -324,7 +443,7 @@ export class Pool {
    * session relay; one that fails is removed.
    */
   async loopback(url: string, probe: NostrEvent, echoMs = 3000, connectMs = 5000): Promise<LoopbackResult> {
-    if (this.closed) return { ok: false, reason: 'cancelled' };
+    if (this.isClosed) return { ok: false, reason: 'cancelled' };
     const link = this.add(url, false);
     const fail = (reason: string): LoopbackResult => {
       this.remove(url);
@@ -332,7 +451,7 @@ export class Pool {
     };
 
     const opened = await this.until(() => link.state === 'open' || (link.state === 'closed' && !link.reconnect), connectMs);
-    if (this.closed) return { ok: false, reason: 'cancelled' };
+    if (this.isClosed) return { ok: false, reason: 'cancelled' };
     if (!opened || link.state !== 'open') return fail('could not connect');
 
     const key = `${url} ${probe.id}`;
@@ -349,7 +468,7 @@ export class Pool {
     });
     link.publishLocal(probe);
     const ok = await echoed;
-    if (this.closed) return { ok: false, reason: 'cancelled' };
+    if (this.isClosed) return { ok: false, reason: 'cancelled' };
     if (!ok) {
       const ack = link.acks.get(probe.id);
       if (ack && !ack.ok) return fail(`refused: ${ack.message || 'no reason given'}`);
@@ -374,16 +493,34 @@ export class Pool {
     });
   }
 
-  /** Resolves once every published event was accepted by some relay, or after `ms`. */
+  /** Resolves once every message in the outbox was accepted by some relay, or after `ms`. */
   drain(ms: number): Promise<boolean> {
     return this.until(
-      () => this.outbox.every((e) => this.all().some((l) => l.acks.get(e.id)?.ok === true)),
+      () => this.outbox.every((e) => this.all().some((l) => l.acks.get(e.event.id)?.ok === true)),
       ms,
     );
   }
 
+  /**
+   * The session has ended. What was still waiting for an answer will not get one and is
+   * dropped; the last messages (an ACK, an ABORT) go out their remaining times, and
+   * then the pool closes.
+   */
+  async windDown(): Promise<void> {
+    if (this.closed || this.ending) return;
+    this.ending = true;
+    for (let i = this.outbox.length - 1; i >= 0; i--) if (this.outbox[i]!.until === undefined) this.outbox.splice(i, 1);
+    const last = Math.max(Date.now(), ...this.outbox.map((e) => e.until!));
+    await this.until(() => Date.now() >= last, last - Date.now() + 1000);
+    await this.drain(2500);
+    this.close();
+  }
+
   close(): void {
     this.closed = true;
+    if (this.resendTimer) clearInterval(this.resendTimer);
+    globalThis.document?.removeEventListener('visibilitychange', this.onVisible);
+    globalThis.removeEventListener?.('online', this.onVisible);
     for (const link of this.links.values()) link.close();
     this.links.clear();
     this.waiters.clear();

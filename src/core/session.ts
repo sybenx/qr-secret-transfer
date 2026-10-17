@@ -40,7 +40,7 @@ import { type Env, type NostrEvent, type Rumor, firstTag, isValidPublicKey, publ
 import { type Profile, assertProfile } from './profile.ts';
 import { commit as commitOf, sas as sasOf } from './sas.ts';
 import { type Role, isToken } from './uri.ts';
-import { type RumorInput, buildRumor, unwrap, wrap } from './wrap.ts';
+import { type RumorInput, buildRumor, giftWrap, seal, unwrap, wrap } from './wrap.ts';
 
 export type Phase =
   /** Nobody has completed the nonce exchange with us yet. */
@@ -99,8 +99,18 @@ export interface TransferRecord {
 }
 
 export type Effect<T> =
-  /** Publish this gift wrap to every relay of the session. `label` is for a debug log only. */
-  | { t: 'publish'; event: NostrEvent; label: string }
+  /**
+   * Publish this gift wrap to every relay of the session, and keep sending it again,
+   * each time as `giftWrap(seal, to)`, until a `settled` effect covers it (§11.5). A
+   * message marked `unanswered` (an ACK, an ABORT) is one nothing will ever answer:
+   * send it again a few times and then stop. `label` is for a debug log only.
+   */
+  | { t: 'publish'; event: NostrEvent; seal: NostrEvent; to: string; kind: number; unanswered: boolean; label: string }
+  /**
+   * The burner `peer` has evidently received every message of these kinds that this
+   * session sent it, because it has answered them. Stop sending them again.
+   */
+  | { t: 'settled'; peer: string; kinds: number[] }
   /** Receiver: the user confirmed. Keep this value. */
   | { t: 'commit'; value: T }
   /** §14: write this to the local transfer log. */
@@ -189,6 +199,21 @@ interface Peer<T> {
 
 const short = (pub: string) => `${pub.slice(0, 8)}…`;
 const MAX_SEEN = 512;
+
+/**
+ * The exchange between two burners is a strict alternation (§7, §8): contact, NONCE,
+ * REVEAL, PAYLOAD, ACK. A message at one step could only have been sent by a peer
+ * that had received everything this side sent it at the steps before, so receiving
+ * it settles those (§11.5). An ABORT settles everything.
+ */
+const STEPS: number[][] = [[KINDS.HELLO, KINDS.REQUEST], [KINDS.NONCE], [KINDS.REVEAL], [KINDS.PAYLOAD], [KINDS.ACK]];
+const ALL_KINDS = STEPS.flat().concat(KINDS.ABORT);
+
+function answeredBy(kind: number): number[] {
+  if (kind === KINDS.ABORT) return ALL_KINDS;
+  const step = STEPS.findIndex((kinds) => kinds.includes(kind));
+  return step > 0 ? STEPS.slice(0, step).flat() : [];
+}
 
 export class Session<T> {
   readonly role: Role;
@@ -316,7 +341,16 @@ export class Session<T> {
 
   private send(to: string, input: RumorInput, label: string): Effect<T> {
     const r = buildRumor(input, this.pub, this.env.now());
-    return { t: 'publish', event: wrap(r, this.secretKey, to, this.env), label: `${label} → ${short(to)}` };
+    const sealed = seal(r, this.secretKey, to, this.env);
+    return {
+      t: 'publish',
+      event: giftWrap(sealed, to, this.env),
+      seal: sealed,
+      to,
+      kind: input.kind,
+      unanswered: input.kind === KINDS.ACK || input.kind === KINDS.ABORT,
+      label: `${label} → ${short(to)}`,
+    };
   }
 
   private abort(to: string, reason?: Outcome): Effect<T> {
@@ -398,10 +432,18 @@ export class Session<T> {
     if (r.created_at < this.startedAt - SLACK_SECONDS || r.created_at > this.startedAt + SESSION_SECONDS + SLACK_SECONDS) {
       return [{ t: 'trace', text: 'ignored a message outside the session window' }];
     }
+    // A peer sends each message again until it is answered (§11.5), each time in a new
+    // wrap around the same rumor, so this is where a repeat stops.
     if (this.seen.has(r.id)) return [];
     // Bounded: a flood of distinct junk must not grow this without limit.
     if (this.seen.size < MAX_SEEN) this.seen.add(r.id);
+    const effects = this.dispatch(r);
+    // Only a message the exchange took (anything it did not ignore) says what the peer has received.
+    const answered = effects.length > 0 ? answeredBy(r.kind) : [];
+    return answered.length > 0 ? [{ t: 'settled', peer: r.pubkey, kinds: answered }, ...effects] : effects;
+  }
 
+  private dispatch(r: Rumor): Effect<T>[] {
     switch (r.kind) {
       case KINDS.HELLO:
         return this.showing && this.role === 'receiver' ? this.onContact(r) : [];
@@ -563,7 +605,14 @@ export class Session<T> {
   /** Receiver: a payload arrived. It is held, never kept, until the user confirms (§9.4). */
   private onPayload(r: Rumor): Effect<T>[] {
     const peer = this.peers.get(r.pubkey);
-    if (!peer || peer.sas === undefined || peer.held !== undefined) return [];
+    if (!peer || peer.held !== undefined) return [];
+    if (peer.sas === undefined) {
+      // Ahead of the REVEAL that gives it meaning: a relay that held both while this
+      // device was away may serve the newer first. Not seen yet, so that the Sender's
+      // next re-send of it is taken once the REVEAL is in.
+      this.seen.delete(r.id);
+      return [{ t: 'trace', text: `PAYLOAD ← ${short(peer.pub)} arrived before its REVEAL; waiting for it again` }];
+    }
     if (this.phase !== 'code') return [];
 
     if (peer.pub !== this.active || !peer.displayed) {

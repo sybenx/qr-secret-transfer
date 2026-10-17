@@ -25,7 +25,7 @@ import {
   isPrivateHost,
   normalizeRelayUrl,
 } from '../core/index.ts';
-import { type LoopbackResult, Pool } from './pool.ts';
+import { FINAL_RESEND_MS, type LoopbackResult, Pool, RESEND_MS } from './pool.ts';
 import type { Candidate, RelayMemo, Source, Store } from './store.ts';
 
 export interface Timing {
@@ -38,6 +38,10 @@ export interface Timing {
   queryMs: number;
   /** Pause before working through the sources again when nothing has passed. */
   retryMs: number;
+  /** How often an outstanding message of the session goes out again (§11.5). */
+  resendMs: number;
+  /** How long a session's last message (an ACK, an ABORT) keeps going out after it ends. */
+  finalMs: number;
 }
 
 export const DEFAULT_TIMING: Timing = {
@@ -47,6 +51,8 @@ export const DEFAULT_TIMING: Timing = {
   nip11Ms: 2500,
   queryMs: 4000,
   retryMs: 4000,
+  resendMs: RESEND_MS,
+  finalMs: FINAL_RESEND_MS,
 };
 
 /** Relays to list when that many pass. The QR may carry up to four (§11.2). */
@@ -196,6 +202,8 @@ export function rankDiscovered(
     if (networks.length > 0 && !networks.includes('clearnet')) continue;
     const requirements = tagValues(e, 'R');
     if (requirements.includes('payment')) continue;
+    // Kind 21059 is ephemeral, so a monitor that lists accepted kinds rarely names it;
+    // one that says it is refused is still worth believing.
     const kinds = tagValues(e, 'k');
     if (kinds.includes(`!${KINDS.WRAP}`)) continue;
 
@@ -233,8 +241,12 @@ export async function discover(from: string[], now: number, ms: number, net: Net
 export interface SelectOptions {
   pool: Pool;
   store: Store;
-  /** The session's probe wrap. The pool must already be ignoring its id. */
-  probe: NostrEvent;
+  /**
+   * Makes the session's probe wrap, one per relay tested, the pool already ignoring its
+   * id. Fresh each time: selection can go on for minutes, and a relay may refuse an
+   * ephemeral event more than a minute old.
+   */
+  probe(): NostrEvent;
   now(): number;
   onProgress(progress: RelayProgress[]): void;
   /** Extra relays to ask for discovery events, beyond the ones this device knows. */
@@ -252,7 +264,7 @@ const originOf = (c: Candidate, memos: RelayMemo[]): RelayMemo['origin'] =>
  * pool is closed; in the second case it resolves with an empty list.
  */
 export async function selectRelays(options: SelectOptions): Promise<string[]> {
-  const { pool, store, probe } = options;
+  const { pool, store } = options;
   const timing = { ...DEFAULT_TIMING, ...options.timing };
   const net = options.net ?? {};
   const progress = new Map<string, RelayProgress>();
@@ -285,6 +297,15 @@ export async function selectRelays(options: SelectOptions): Promise<string[]> {
     progress.set(c.url, { url: c.url, source: c.source, state: 'testing' });
     report();
     const origin = originOf(c, store.memos());
+    let probe: NostrEvent;
+    try {
+      probe = options.probe();
+    } catch {
+      // The session ended between two tests.
+      cancelled = true;
+      wake();
+      return;
+    }
     const [loop, info] = await Promise.all([
       pool.loopback(c.url, probe, timing.echoMs, timing.connectMs),
       relayInfo(c.url, timing.nip11Ms, net),
