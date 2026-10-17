@@ -1,5 +1,6 @@
 export interface Behaviour {
   rejectWrites?: string;
+  rateLimitAfter?: number;
   rejectKinds?: number[];
   authRequired?: 'write' | 'read' | 'both';
   recipientOnly?: boolean;

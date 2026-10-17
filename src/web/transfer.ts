@@ -11,6 +11,7 @@ import {
   type PairingParams,
   type Profile,
   type Role,
+  KINDS,
   Session,
   type SessionView,
   VERSION,
@@ -25,6 +26,8 @@ import {
 import { Pool } from './pool.ts';
 import { type Net, type RelayProgress, type Timing, replenish, selectRelays } from './select.ts';
 import type { Source, Store } from './store.ts';
+
+const ALL_BUT_ABORT = Object.values(KINDS).filter((k) => k !== KINDS.ABORT);
 
 export interface TransferDeps<T> {
   profile: Profile<T>;
@@ -343,6 +346,9 @@ export class Transfer<T> {
       switch (e.t) {
         case 'publish': {
           const { seal, to } = e;
+          // An ABORT ends the exchange with that peer: nothing sent to it before needs to
+          // go out again, only the ABORT itself.
+          if (e.kind === KINDS.ABORT) this.pool.settle(to, ALL_BUT_ABORT);
           this.pool.publish({
             event: e.event,
             again: () => giftWrap(seal, to, this.deps.env),

@@ -16,6 +16,7 @@ import { WebSocketServer } from 'ws';
 /**
  * @typedef {object} Behaviour
  * @property {string} [rejectWrites]   Refuse every EVENT with this message, e.g. "blocked: members only".
+ * @property {number} [rateLimitAfter] Accept this many EVENTs, then answer every further one "rate-limited: …".
  * @property {number[]} [rejectKinds]  Refuse these kinds.
  * @property {'write'|'read'|'both'} [authRequired]  Demand NIP-42 before EVENT, REQ, or both.
  * @property {boolean} [recipientOnly] Serve gift wraps (1059, 21059) only to the authenticated p-tagged key (NIP-17).
@@ -126,6 +127,7 @@ export async function startRelay({ port = 0, host = '127.0.0.1', behaviour = {} 
           return refuse('auth-required: authenticate to publish');
         }
         if (how.rejectWrites) return refuse(how.rejectWrites);
+        if (how.rateLimitAfter !== undefined && stats.accepted >= how.rateLimitAfter) return refuse('rate-limited: slow down');
         if (how.rejectKinds?.includes(event.kind)) return refuse('blocked: kind not accepted here');
         if (how.maxEventBytes && JSON.stringify(event).length > how.maxEventBytes) return refuse('invalid: event too large');
         if (event.kind === 22242) return refuse('invalid: auth events are not published');

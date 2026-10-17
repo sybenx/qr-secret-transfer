@@ -91,6 +91,9 @@ export class RelayLink {
   private authId: string | undefined;
   private authed = false;
   private attempt = 0;
+  /** A relay that answered "rate-limited" gets no timed re-sends until then (ms since the epoch). */
+  restUntil = 0;
+  private rests = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private closedByUs = false;
   /** Events for this relay alone: the loopback probe, until it has passed. */
@@ -221,6 +224,12 @@ export class RelayLink {
           return;
         }
         this.acks.set(a, { ok, message: text });
+        if (ok) this.rests = 0;
+        else if (text.startsWith('rate-limited')) {
+          // Back off the timed re-sends to this relay (10 s, doubling to a minute); new
+          // messages still go out at once.
+          this.restUntil = Date.now() + Math.min(60_000, 10_000 * 2 ** this.rests++);
+        }
         if (!ok) {
           this.lastReason = text || 'refused';
           const wantsAuth = text.startsWith('auth-required') && !this.authed;
@@ -368,10 +377,11 @@ export class Pool {
    */
   resend(only?: RelayLink): void {
     if (this.closed) return;
-    for (const e of this.outbox) this.again(e, only);
+    const now = Date.now();
+    for (const e of this.outbox) if (e.until === undefined || now < e.until) this.again(e, only);
   }
 
-  private again(e: Entry, only?: RelayLink): void {
+  private again(e: Entry, only?: RelayLink, timed = false): void {
     if (e.again) {
       try {
         e.event = e.again();
@@ -380,14 +390,14 @@ export class Pool {
       }
     }
     if (only) only.publish(e.event);
-    else for (const link of this.links.values()) link.publish(e.event);
+    else for (const link of this.links.values()) if (!timed || Date.now() >= link.restUntil) link.publish(e.event);
   }
 
   /** The timed re-send: everything outstanding, and what nothing will answer while its time lasts. */
   private tick(): void {
     if (this.closed) return;
     const now = Date.now();
-    for (const e of this.outbox) if (e.until === undefined || now < e.until) this.again(e);
+    for (const e of this.outbox) if (e.until === undefined || now < e.until) this.again(e, undefined, true);
   }
 
   /** Reconnects what is down and sends everything outstanding again, now. */

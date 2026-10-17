@@ -1,7 +1,7 @@
 // Relay transport and relay selection, against real WebSockets and a local relay that
 // can be told to misbehave the way public relays do.
 
-import { finalizeEvent, generateSecretKey as ntKey } from 'nostr-tools';
+import { finalizeEvent, getPublicKey, generateSecretKey as ntKey } from 'nostr-tools';
 import { afterEach, describe, expect, it } from 'vitest';
 import { type Env, KINDS, Session, demoText, generateSecretKey } from '../src/core/index.ts';
 import { Pool, type RelayProgress, Store, loopbackOnce, rankDiscovered, relayInfo, ruledOutBy, selectRelays } from '../src/web/index.ts';
@@ -109,6 +109,24 @@ describe('loopback test (§11.3a)', () => {
     expect(await pool.loopback(r.url, probe, timing.echoMs, timing.connectMs)).toEqual({ ok: true });
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(received).toEqual([]);
+  });
+});
+
+describe('re-sending (§11.5)', () => {
+  it('backs off the timed re-sends to a relay that says it is rate-limiting', async () => {
+    const r = await relay({ rateLimitAfter: 1 });
+    const p = getPublicKey(ntKey());
+    const fresh = () => finalizeEvent({ kind: KINDS.WRAP, created_at: env.now(), tags: [['p', p]], content: 'x' }, ntKey());
+    const pool = new Pool({ filter: { kinds: [KINDS.WRAP], '#p': [p] }, signAuth: () => { throw new Error('no auth'); }, onEvent: () => {}, resendMs: 50 });
+    pools.push(pool);
+    const link = pool.add(r.url, true);
+    for (let i = 0; i < 100 && link.state !== 'open'; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    pool.publish({ event: fresh(), again: fresh, to: p, kind: KINDS.HELLO });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Without the back-off this would be about 16 publishes; with it, the first is
+    // accepted, the next is refused as rate-limited, and the timed re-sends stop.
+    expect(r.stats.rejected).toBe(1);
+    expect(r.stats.events).toBeLessThanOrEqual(3);
   });
 });
 
