@@ -63,12 +63,13 @@ Before publishing, set a canonical URL and the three GitHub links in
 
 ## What it implements
 
-The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md) 1.5-draft:
+The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-key-management/blob/main/QR_SECRET_TRANSFER.md) 1.6-draft:
 
 - the commit-then-reveal exchange and five-digit code of §6, reproducing the
   specification's own vectors (`vectors/qrst-sas.json`);
 - Flow A and Flow B (§7, §8), with the roles never inferred from who showed the code;
-- sealing and gift-wrapping (§11.4) over NIP-44 v2, with true timestamps and the
+- sealing and gift-wrapping (§11.4) as an *ephemeral* gift wrap, kind 21059
+  (NIP-59 §4), which relays do not store, over NIP-44 v2, with true timestamps and the
   attribution check, checked against the official NIP-44 vectors and against
   `nostr-tools` in both directions;
 - the pairing link (§11.2), the bounce page (§11.2a), and how a code is presented
@@ -78,14 +79,12 @@ The wire protocol of [`QR_SECRET_TRANSFER.md`](https://github.com/sybenx/nostr-k
 - the one-time token in every pairing link (§11.2, §11.4);
 - relay selection by loopback test (§11.3a): see [Relays](#relays);
 - multiple responders (§13) and the local transfer record (§14);
-- relay subscription, the session outbox, and NIP-42 with the burner (§11.5).
+- relay subscription, re-sending each message in a fresh wrap until the peer
+  answers it, rumor-level deduplication, and NIP-42 with the burner (§11.5).
 
-with one change the specification does not have yet: every message is an
-*ephemeral* gift wrap, kind 21059 (NIP-59 §4), not kind 1059, and each one goes out
-again, in a fresh wrap, until the peer answers it. Relays treat kind 1059 as a stored
-direct message and were seen serving one long after its NIP-40 expiry; a relay must
-not store kind 21059. The proposed text for §11.4, §11.5, §11.7 and the T8 row is in
-[`SPEC_PROPOSAL_21059.md`](SPEC_PROPOSAL_21059.md).
+1.6-draft moved the wrap from kind 1059 to 21059 because of this implementation:
+relays treat kind 1059 as a stored direct message and were seen serving one long
+after its NIP-40 expiry. A 1.5 client, which uses 1059, cannot pair with this one.
 
 The three levels of §9.2 are chosen on each device with a slider, and the stricter of
 the two devices' settings applies:
