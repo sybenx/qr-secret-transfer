@@ -8,9 +8,17 @@ Key words MUST, MUST NOT, SHOULD, MAY are normative.
 *History.* Until QRST moved to this repository, this profile was §3.1 of
 `NOSTR_KEY_MANAGEMENT.md` in
 [sybenx/nostr-key-management](https://github.com/sybenx/nostr-key-management),
-now an archive. This file supersedes that section. The payload, the P4 check and
-the minimum check level are unchanged. The `enroll` tag, which served that
-document's threshold-signing design, is dropped.
+now an archive. This file supersedes that section. The payload, the P4 check, the
+P5 rendering, the Sender's prompt and the minimum check level are unchanged.
+Otherwise:
+
+- The `enroll` tag, which served that document's threshold-signing design, is
+  dropped, and so are its Sender restrictions for that design (only a keep-key
+  device may send; an Offline-mode device must not). A warning about FROSTR groups,
+  from the unpublished 10.0 draft, takes their place.
+- The meaning of the `lock` tag, and the platform-credential check before release,
+  come from that document's §2.2, which the tag and the check depended on.
+- The rule against exporting a bare key comes from its §4.1.
 
 ---
 
@@ -51,6 +59,15 @@ Receiver that has no such setting ignores the tag, as QRST §11.4 requires for a
 tag it does not recognise. The tag is a preference and never a security boundary:
 the Receiver holds the whole key whatever it says.
 
+## Before release
+
+Acting as Sender touches the key itself, so it is privileged. Where the platform
+offers an authenticator (device PIN, password or biometric), the Sender MUST
+require it before release, alongside the consent of QRST §9.1, with one line
+saying what it guards: "Confirm: this sends your key to *Laptop*". Where the
+platform offers none, the Sender proceeds on that consent alone. Like the consent,
+the check authorises one session and is never remembered (QRST §9.1).
+
 ## Sender restrictions
 
 None beyond QRST §14.
@@ -68,8 +85,9 @@ as `ncryptsec` on one and import it on the other. That is why this profile defin
 no offline tier of its own (QRST §10), and why copy-paste pairing (QRST §12.1)
 adds little for it between two devices that can already pass text.
 
-A client MUST NOT offer a bare, unencrypted key as text or as a QR in place of
-either path.
+Export is always `ncryptsec`. A client MUST NOT export the bare key as text, a
+file or a QR. Showing the key on screen, if a client offers it at all, is not an
+export: it is privileged like release, and the key is never written to disk.
 
 ## Test vectors
 

@@ -102,6 +102,10 @@ cannot carry the declared maximum.
 Payloads SHOULD be base64 rather than hex, which costs roughly 40% of the budget
 for no benefit. Profiles carrying tens of bytes MAY use hex.
 
+A payload is measured in the bytes the profile defines, before any base64 or hex
+encoding the profile applies to carry it in the PAYLOAD message. A profile whose
+payload is already text measures the text, in UTF-8 bytes.
+
 A conformance test vector MUST exist at exactly the declared maximum.
 
 ### P2 — Single-shot
@@ -153,14 +157,16 @@ A profile defines one kind of payload. It is identified by a string matching
    in §11.4.
 7. The lowest check level of §9.2 it permits. A profile whose payload cannot be
    revoked once released SHOULD NOT permit `none`. A profile that states nothing
-   permits `compare` and above. Whatever level applies, it replaces only the code
+   permits `compare` and above. The minimum MAY depend on how the pairing URI
+   reached the Sender (§12.3). Whatever level applies, it replaces only the code
    check, never the consent of §9.
 8. Whether it permits the offline tier (§10), and if so the passphrase encryption
    satisfying P7. A profile that permits it MUST forbid a raw, unencrypted offline
    encoding.
 
-A profile MAY restrict which parties are permitted to act as Sender, and MAY
-register a URI scheme of its own for its pairing URI (§12.3).
+A profile MAY restrict which parties are permitted to act as Sender, MAY require
+a platform credential or biometric check before the Sender releases (§9.1), and
+MAY register a URI scheme of its own for its pairing URI (§12.3).
 Implementations MUST ignore tags they do not recognise.
 
 Profiles are defined outside this document, so that a new kind of payload never
@@ -651,8 +657,10 @@ NIP-59's `created_at` randomisation maps to no row above and is **not** used; se
 
 The pairing address is a single `https` link. Every parameter lives in the URL
 **fragment**, so that neither the burner key nor the relay list reaches the host's
-server or its logs. There is no custom URI scheme: "qrst" is the name of the
-mechanism, not a `scheme://`, and MAY appear in `<path>`.
+server or its logs. This binding defines no custom URI scheme: "qrst" is the name
+of the mechanism, not a `scheme://`, and MAY appear in `<path>`. A profile MAY
+register one as a second carrier for pasting and deep links (§12.3); the QR is
+always this `https` form.
 
 ```
 https://<host>/<path>#v=1&mode=<offer|request>&p=<profile-id>&npub=<npub>&check=<none|compare|type>&token=<hex>[&relay=<wss url>]*[&origin=<claimed-origin>]
@@ -981,13 +989,15 @@ authentication during a transfer.
 ### 11.6 Size
 
 Measured expansion from raw payload to published event is **×3.4 for base64
-payloads and ×4.7 for hex**.
+payloads and ×4.7 for hex**. The figures below are computed by
+`tools/payload_ceiling.py` for the 1.6 message shape (PAYLOAD rumor without tags,
+seal, kind 21059 wrap).
 
 | Limit | Where | Max payload (base64) |
 |---|---|---|
-| `max_content_length` = 8196 | NIP-11's example value | 2 082 B |
-| `maxEventSize` = 65536 | strfry's default | 21 282 B |
-| `maxWebsocketPayloadSize` = 131072 | strfry's default | 30 498 B |
+| `max_content_length` = 8196 | NIP-11's example value | 2 145 B |
+| `maxEventSize` = 65536 | strfry's default | 21 345 B |
+| `maxWebsocketPayloadSize` = 131072 | strfry's default | 30 561 B |
 
 `max_content_length` caps the `content` field alone, which is where the entire
 nested ciphertext sits, and is the origin of the 2048 B default in P1. Note that
@@ -1067,35 +1077,38 @@ Flow B proceeds unchanged from immediately after the scan, and every requirement
 of §6 and §9 applies as written. Two clients implementing different bootstrapping
 channels will not pair.
 
-### 12.3 Profile URI schemes, and copied URIs at `none`
+### 12.3 Profile URI schemes, and pairing URIs at `none`
 
 **Carrier.** A profile MAY register a custom URI scheme as a second carrier for its
-pairing URI (§5). A custom scheme reads as a token to hand to an app, and opens the
-app when tapped, which an `https` link does not. It carries the parameters of §11.2,
-with the burner key in place of the host:
+pairing URI (§5), for pasting and deep links, where a token to hand to an app and
+tap-to-open matter and there is no host to protect. The QR form stays the `https`
+fragment link of §11.2. A URI in a profile's scheme carries the parameters of
+§11.2, in the same encoding, with the burner key in place of the host and path and
+the rest as the query:
 
 ```
-<scheme>://<npub>?v=1&mode=<offer|request>&p=<profile-id>&check=<level>&token=<hex>[&relay=<wss url>]*
+<scheme>://<npub>?v=1&mode=<mode>&p=<profile-id>&check=<level>&token=<hex>[&relay=<wss url>]*[&origin=<claimed-origin>]
 ```
 
-The scheme is bound to the profile that registered it: a URI whose `p` names any
-other profile MUST be rejected. It is validated exactly as §11.2 requires of the
-`https` form, and a URI without a `token` is rejected. The QR form stays the
-`https` fragment link of §11.2 (fragment privacy, camera-read); a custom scheme is
-for pasting and deep-linking, where legibility and tap-to-open matter and there is
-no host to protect. `frost-share` registers `frost://`.
+It is validated as §11.2 requires, with one further rule: a URI in a profile's
+scheme carries only that profile's identifier, and a client MUST reject one whose
+`p` differs. Scheme names, like profile identifiers, are registered nowhere; a
+profile chooses one unlikely to collide. A custom scheme is a global string that
+any app can claim (§11.2a), so a URI that arrives by tapping one may have been
+handed to, or sent from, an app the user did not intend. `frost-share` registers
+`frost://`.
 
-**A copied URI at `none`.** The token stops a party that never received the URI,
+**Pairing URIs at `none`.** The token stops a party that never received the URI,
 such as a reader of the relays it names. It does **not** stop interception of the
 URI itself: whoever obtains it can answer, and at `none` (§9.2) can be released to
-before the user's own device answers. What an intercepted payload then yields is the
-profile's to state; for a threshold share it is a working member credential, and,
-combined with enough other shares, the whole key, which no later revocation undoes.
-A profile that permits `none` therefore suits delivery over a channel the Sender
-controls — its own camera, or a paste between apps of the same user on one device —
-where interception means a local compromise that already loses. Over a channel the
-Sender does not control (a link relayed through a third party), `compare` or `type`
-is required.
+before the user's own device answers. A Sender that shows or copies its own URI at
+`none` (Flow B) therefore releases to whoever answers it first, and for as long as
+that URI is on a screen or a clipboard it is as good as the payload. A profile that
+permits `none` SHOULD state over which channels it does, and what an intercepted
+payload yields (§5, item 7). Whatever a profile says, a URI that reached the Sender
+through a third party, or by a custom-scheme deep link, is not a channel the Sender
+controls, and §12.1 already asks a client not to offer `none` for a URI it knows
+will be sent through a third party.
 
 **Consent still applies.** The Sender's release consent (§9.1) is still shown and
 still fails closed on friction tier, in the profile's words. The Receiver's
@@ -1199,7 +1212,7 @@ candidate, or aborts if none remain.
   second responder stops the session and both are told, but a party who sees the
   QR, answers before the user's device, and is released to before the user's
   device answers, receives the payload. The level is for what can be revoked or is
-  inert until admitted, over a channel the user controls.
+  inert until admitted, over a channel the Sender controls (§12.3).
 - **A hostile party acting as Receiver is not stopped by the SAS.** Such a party
   holds a real burner, receives the real messages, and displays a matching code.
   It is stopped only by a user declining the release prompt of §9. This is the
@@ -1217,10 +1230,10 @@ candidate, or aborts if none remain.
   can be sent in a message while a QR must be placed in front of the user. §12.1
   requires extra friction on the direction where this matters.
 - **A payload at `none` (§12.3)** does not survive interception of the URI
-  itself. For a threshold share, an intercepted share plus enough others
-  reconstructs the key, which no later revocation undoes. `none` is therefore for
-  controlled delivery channels (own camera, local paste); an uncontrolled channel
-  uses `compare` or `type`.
+  itself, and a Sender that shows or copies its own URI at `none` releases to
+  whoever answers it first. What that costs is the profile's to state; for a
+  threshold share, an intercepted share plus enough others is the key, which no
+  later revocation undoes.
 - **An operator sees both halves of a session.** T4 covers unlinkability to
   long-lived identity only. A relay carrying both parties observes a subscription
   for one burner and wraps addressed to the other, seconds apart, and can pair
@@ -1295,14 +1308,30 @@ fallback, and stopped assuming every payload is irrevocable; 1.3 added the
 On 2026-10-17 this document moved from
 [sybenx/nostr-key-management](https://github.com/sybenx/nostr-key-management) to
 this repository, beside its reference implementation, and the two profiles it had
-relied on that repository for moved into [`profiles/`](profiles/README.md). Nothing
-on the wire changed, and 1.6 clients before and after the move pair. The text
-changed as follows: §5 points to `profiles/`; §10, §11.3, §12.1 and §15 no
-longer describe particular profiles; §12.3 lets any profile register a URI scheme,
-and `frost://` is now registered by `frost-share`, unchanged; and P1's figure for a
-32-byte secret is recomputed for the 1.6 message shape (1.7 KB, not 1.9). §12.3 also
-no longer says `nostr-nsec` permits `compare`: the profile's own minimum is `type`,
-and the profile governs.
+relied on that repository for moved into [`profiles/`](profiles/README.md). The
+core protocol's messages did not change, and 1.6 clients before and after the move
+pair. The text changed as follows:
+
+- §5 points to `profiles/`, and lets a profile register a URI scheme (§12.3),
+  require a platform credential before release (§9.1 already referred to one), and
+  set a lowest check level that depends on how the pairing URI reached the Sender.
+- §10, §11.3, §12.1 and §15 cite profiles only as examples.
+- §11.2 allows a profile's own scheme; §12.3 defines it for any profile, with one
+  new rule: a URI in a profile's scheme MUST carry that profile's identifier.
+  `frost://` moves to `frost-share` unchanged. The rule that a share at `none`
+  needs a channel the Sender controls moves to `frost-share` too, and is tightened
+  there. The core now says that a profile permitting `none` SHOULD state over which
+  channels, which channels never count as controlled, and that a Sender's own URI
+  at `none` is as good as the payload.
+- P1 says how a payload is measured. Its figure for a 32-byte secret (1.7 KB, not
+  1.9) and the §11.6 table are recomputed for the 1.6 message shape.
+- §12.3 no longer says `nostr-nsec` permits `compare`: the profile's own minimum is
+  `type`, and the profile governs.
+
+The profiles changed as they moved, and each file's History says how. One change is
+incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`
+and `bfgroup1…`) in place of the share format of the old storage specification's
+9.2, under the same identifier. No implementation of the 9.2 format is known.
 
 Two things are still open: the event kinds of §11.4 are provisional — chosen from
 the ephemeral range and verified non-conflicting (2026-09-02), but not yet reserved

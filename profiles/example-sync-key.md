@@ -30,13 +30,13 @@ a key that belongs to no one.
 
 | QRST §5 item | This profile |
 |---|---|
-| 1. Payload encoding | UTF-8 JSON, one object: `{"v":1,"app":"<app id>","name":"<label>","key":"<base64>"}`. `key` is the 32-byte sync key, standard base64. `name` is a label the user gave the save or the player, up to 64 characters. `app` identifies the app, so two apps that copy this template cannot accept each other's keys. |
-| 2. Maximum size | The default (2048 bytes). This payload is under 200. |
-| 3. P4 check | Parses as JSON with exactly these four members; `v` is `1`; `app` equals the receiving app's own identifier; `key` decodes to exactly 32 bytes; `name` is a string of at most 64 characters. |
+| 1. Payload encoding | UTF-8 JSON, one object: `{"v":1,"app":"<app id>","name":"<label>","key":"<base64>"}`. `key` is the 32-byte sync key, standard base64. `name` is a label the user gave the save or the player, at most 64 bytes of UTF-8. `app` identifies the app, at most 32 characters of `[a-z0-9-]`, so two apps that copy this template cannot accept each other's keys. |
+| 2. Maximum size | The default (2048 bytes). With the limits in row 3 the payload is at most 512 bytes, even with every character of `name` escaped. |
+| 3. P4 check | At most 512 bytes; parses as JSON with exactly these four members; `v` is `1`; `app` equals the receiving app's own identifier; `key` decodes to exactly 32 bytes; `name` is a string of at most 64 bytes of UTF-8. |
 | 4. P5 rendering | **"Sync with *name*?"**, and, if this device already has a save, that it will be replaced by the other device's. |
-| 5. Sender's prompt | "Let *X* sync your saves." It MUST say that the other device will be able to read and change your saves until you reset sync. |
+| 5. Sender's prompt | "Let *X* sync your saves." It MUST say that the other device will be able to read and change your saves until you reset sync, and will keep any copy it already has. |
 | 6. Additional tags | None. |
-| 7. Lowest check level | `compare`. A sync key gives full access to the save, but it can be revoked by resetting it, so the profile does not insist on `type`. An app MAY require `type`. |
+| 7. Lowest check level | `type` until the app can reset sync ([Revoking](#revoking)); `compare` once it can. A sync key gives full access to the save, so it is only once it can be revoked that the profile stops insisting on `type`. An app MAY always require `type`. |
 | 8. Offline tier | Not permitted. Two devices with no network have nothing to sync through. |
 
 ## Revoking
@@ -46,8 +46,8 @@ it, and hand the new key to every device the user still wants. A device left wit
 the old key keeps whatever copy of the save it already had and can no longer reach
 the new one.
 
-Until an app provides that, its sync key cannot be revoked, and its Sender's
-prompt MUST say so (QRST §9.1) and its lowest check level SHOULD be `type`.
+Until an app provides that, its sync key cannot be revoked: its Sender's prompt
+MUST say so (QRST §9.1), and its lowest check level is `type` (row 7).
 
 ## Choosing an identifier
 

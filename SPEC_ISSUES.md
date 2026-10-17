@@ -174,3 +174,46 @@ window start (each party's own); §11.2's relay encoding and count; §11.6 (only
 showing party reads NIP-11); §11.5's dedupe (after signature verification) and
 relay text (untrusted, bounded); §11.2a framing; §11.4's clock warning (only where
 a client can tell).
+
+---
+
+The entries below were found while moving the specification to this repository
+on 2026-10-17, and by an independent review of the move.
+
+### §12.3 and `nostr-nsec` disagreed on the lowest check level
+
+**Document:** QR_SECRET_TRANSFER.md, profiles/nostr-nsec.md · **Section:** §12.3, §5 item 7 · **Kind:** suspected error
+
+QRST §12.3 said `nostr-nsec` "uses `compare` or `type`". The profile, then
+`NOSTR_KEY_MANAGEMENT.md` §3.1, said its lowest level is `type`.
+
+Resolved: the core no longer describes particular profiles. The profile states
+`type`, and a profile governs its own minimum (§5, item 7).
+
+### A share at `none` was permitted where the Sender copies its own pairing URI
+
+**Document:** profiles/frost-share.md, QR_SECRET_TRANSFER.md · **Section:** §12.3, §5 item 7 · **Kind:** suspected error
+
+`frost-share` permitted `none` over "a local same-user paste", justified by the
+share being inert until admitted. Under FROSTR a share is a working member
+credential and, with enough others, the key. And a Sender that copies its own URI
+(Flow B) at `none` releases to whoever answers first, so the URI is a bearer token
+for the share wherever the clipboard goes: history, sync, other apps.
+
+Resolved: `frost-share` permits `none` only where the Sender is the contacting
+party and obtained the Receiver's URI itself. §5 item 7 lets a profile's minimum
+depend on how the URI reached the Sender, and §12.3 says which channels never count
+as controlled (a third party, a custom-scheme deep link) and that a Sender's own
+URI at `none` is as good as the payload.
+
+### `frost-share` changed its payload under the same identifier
+
+**Document:** profiles/frost-share.md · **Section:** §5 item 1 · **Kind:** design disagreement
+
+The published 9.2 `frost-share` carried a share of a scheme the old storage
+specification defined for itself. The profile now carries FROSTR's `bfshare1…` and
+`bfgroup1…` pair, which is what a FROSTR client can use, under the same identifier.
+
+Resolved as a note: no implementation of the 9.2 format is known, so the
+identifier is kept and the change is recorded in the profile's History. If one
+turns up, a new identifier is the fix.

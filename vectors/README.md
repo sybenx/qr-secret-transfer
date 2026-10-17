@@ -31,8 +31,9 @@ both flows, the code, the digits, and the roles-transposed negative case all
 agree.
 
 `frost-share-max.json` was built from a real secp256k1 keyset with a seeded
-dealer, so it regenerates byte for byte; a real dealer MUST NOT use a seeded
-generator. Its encodings are bifrost's own `bfshare` and `bfgroup` formats. Its
+dealer. Its generator is not published, so it is a fixture to check against, not
+one to regenerate; a real dealer MUST NOT use a seeded generator. Its P4 check and
+its sizes were re-derived independently on 2026-10-17. Its encodings are bifrost's own `bfshare` and `bfgroup` formats. Its
 `chain` sizes come from [`tools/payload_ceiling.py`](../tools/payload_ceiling.py)
 for the 1.6 message shape (PAYLOAD rumor kind 24405 without tags, seal, ephemeral
 gift wrap kind 21059). Both moved here from
@@ -48,9 +49,9 @@ longer.
   vector sits on it. This is the case where NIP-44's power-of-two padding makes an
   off-by-one-chunk error invisible everywhere else, which is precisely why P1 asks
   for it.
-- **A §11.4 gift-wrap vector.** One was drafted but never published: its fixture
-  predates 1.6, which moved the wrap to kind 21059 and made every timestamp true
-  time, so it has to be regenerated before it can be normative.
+- **A §11.4 gift-wrap vector.** One was drafted but never published. Its fixture
+  predates 1.5, which made every timestamp true time, and 1.6, which moved the wrap
+  to kind 21059, so it has to be regenerated before it can be normative.
 
 ## Checking an implementation
 
