@@ -217,3 +217,18 @@ specification defined for itself. The profile now carries FROSTR's `bfshare1…`
 Resolved as a note: no implementation of the 9.2 format is known, so the
 identifier is kept and the change is recorded in the profile's History. If one
 turns up, a new identifier is the fix.
+
+### "Private-network address" was undefined
+
+**Document:** QR_SECRET_TRANSFER.md · **Section:** §11.3a · **Kind:** ambiguity · [#8](https://github.com/sybenx/qr-secret-transfer/issues/8)
+
+§11.3a forbids taking a private-network address from a NIP-66 report, or carrying
+one learned from a pairing link into later sessions, without saying what one is.
+The obvious reading, and the reference implementation, covered RFC 1918, loopback
+and link-local, and missed the shared space `100.64/10` that carrier-grade NAT and
+Tailscale use, and names such as `.home.arpa` that resolve only on a private
+network. A tailnet relay could be learned from a report and remembered.
+
+Resolved: §11.3a defines the term, adding `100.64/10` and `.home.arpa`, and lets a
+client treat an overlay network's domain, such as `*.ts.net`, as private.
+`isPrivateHost` matches.

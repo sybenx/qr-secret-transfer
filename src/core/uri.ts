@@ -64,16 +64,23 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
  */
 export const relayPolicy = { loopback: false };
 
-/** True for a host on this machine or a private network, where no public relay lives. */
+/**
+ * True for a host on this machine or a private network, where no public relay lives:
+ * §11.3a's private-network address, plus Tailscale's names, which resolve only on a tailnet.
+ */
 export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  if (LOOPBACK.has(h) || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  const h = hostname.toLowerCase().replace(/\.$/, '');
+  if (LOOPBACK.has(h) || /\.(localhost|local|internal|home\.arpa|ts\.net)$/.test(h)) return true;
   if (h.startsWith('[')) return /^\[(::1|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/.test(h);
   const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(h);
   if (!m) return false;
   const a = Number(m[1]);
   const b = Number(m[2]);
-  return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  return (
+    a === 10 || a === 127 || a === 0 ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
 }
 
 /**

@@ -820,6 +820,14 @@ life of the session, as §11.3 requires.
   private-network address from a NIP-66 report, or carry one learned from a pairing
   link into later sessions. It MAY use one a pairing link names, since two devices
   on one network may legitimately share a relay there.
+- A **private-network address** is a loopback, link-local or private address
+  (IPv4 `0/8`, `10/8`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, and the
+  shared space `100.64/10` that carrier-grade NAT and overlay networks use; IPv6
+  `::1`, `fc00::/7` and `fe80::/10`), or a name under `.localhost`, `.local`,
+  `.internal` or `.home.arpa`. A client SHOULD treat as private any other name it
+  knows resolves only on a private network. It MAY treat an overlay network's whole
+  domain as private, such as Tailscale's `*.ts.net`: most of its names resolve only
+  on a tailnet, and the few that are public cost only a relay it does not learn.
 - Relays that pass SHOULD be remembered for later sessions, so that a device prefers
   what has worked for it; a relay that keeps failing SHOULD be forgotten unless the
   user put it there.
@@ -1327,6 +1335,10 @@ pair. The text changed as follows:
   1.9) and the §11.6 table are recomputed for the 1.6 message shape.
 - §12.3 no longer says `nostr-nsec` permits `compare`: the profile's own minimum is
   `type`, and the profile governs.
+
+Since the move, §11.3a defines a private-network address, which it had used
+without defining; the obvious reading missed the shared space `100.64/10`
+([#8](https://github.com/sybenx/qr-secret-transfer/issues/8)).
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`

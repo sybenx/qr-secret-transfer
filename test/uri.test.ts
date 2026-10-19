@@ -143,9 +143,15 @@ describe('relays on this machine', () => {
     } finally {
       relayPolicy.loopback = true;
     }
-    for (const h of ['localhost', '127.0.0.1', '10.0.0.5', '192.168.1.1', '172.20.0.1', '169.254.1.1', 'printer.local', '[::1]', '[fd00::1]']) {
+    for (const h of [
+      'localhost', '127.0.0.1', '10.0.0.5', '192.168.1.1', '172.20.0.1', '169.254.1.1', 'printer.local', '[::1]', '[fd00::1]',
+      // §11.3a: the shared space a tailnet uses, and names that resolve only on a private network
+      '100.64.0.1', '100.101.102.103', '100.127.255.254', 'nas.home.arpa', 'relay.tail1234.ts.net', 'Relay.Tail1234.TS.NET.',
+    ]) {
       expect(isPrivateHost(h), h).toBe(true);
     }
-    for (const h of ['relay.example.com', '8.8.8.8', '172.32.0.1']) expect(isPrivateHost(h), h).toBe(false);
+    for (const h of ['relay.example.com', '8.8.8.8', '172.32.0.1', '100.63.255.255', '100.128.0.1', 'ts.net.example.com', 'home.arpa.example']) {
+      expect(isPrivateHost(h), h).toBe(false);
+    }
   });
 });
