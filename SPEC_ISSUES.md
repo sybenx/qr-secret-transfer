@@ -229,6 +229,6 @@ and link-local, and missed the shared space `100.64/10` that carrier-grade NAT a
 Tailscale use, and names such as `.home.arpa` that resolve only on a private
 network. A tailnet relay could be learned from a report and remembered.
 
-Resolved: §11.3a defines the term, adding `100.64/10` and `.home.arpa`, and lets a
-client treat an overlay network's domain, such as `*.ts.net`, as private.
-`isPrivateHost` matches.
+Resolved: §11.3a defines the term, adding `100.64/10`, `.home.arpa` and IPv4-mapped
+IPv6 addresses, and lets a client treat an overlay network's domain, such as
+`*.ts.net`, as private. `isPrivateHost` matches.

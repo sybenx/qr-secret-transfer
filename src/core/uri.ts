@@ -71,11 +71,21 @@ export const relayPolicy = { loopback: false };
 export function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, '');
   if (LOOPBACK.has(h) || /\.(localhost|local|internal|home\.arpa|ts\.net)$/.test(h)) return true;
-  if (h.startsWith('[')) return /^\[(::1|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/.test(h);
+  if (h.startsWith('[')) {
+    // An IPv4-mapped address, which URL parsing writes as [::ffff:a00:1], is the IPv4 address it maps.
+    const mapped = /^\[::ffff:([0-9a-f]{1,4}):[0-9a-f]{1,4}\]$/.exec(h);
+    if (mapped) {
+      const high = parseInt(mapped[1]!, 16);
+      return isPrivateIpv4(high >> 8, high & 0xff);
+    }
+    return /^\[(::1|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/.test(h);
+  }
   const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(h);
-  if (!m) return false;
-  const a = Number(m[1]);
-  const b = Number(m[2]);
+  return m !== null && isPrivateIpv4(Number(m[1]), Number(m[2]));
+}
+
+/** Whether an IPv4 address with these first two octets is in a §11.3a private range. */
+function isPrivateIpv4(a: number, b: number): boolean {
   return (
     a === 10 || a === 127 || a === 0 ||
     (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) ||

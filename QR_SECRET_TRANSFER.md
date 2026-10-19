@@ -823,9 +823,10 @@ life of the session, as §11.3 requires.
 - A **private-network address** is a loopback, link-local or private address
   (IPv4 `0/8`, `10/8`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, and the
   shared space `100.64/10` that carrier-grade NAT and overlay networks use; IPv6
-  `::1`, `fc00::/7` and `fe80::/10`), or a name under `.localhost`, `.local`,
-  `.internal` or `.home.arpa`. A client SHOULD treat as private any other name it
-  knows resolves only on a private network. It MAY treat an overlay network's whole
+  `::1`, `fc00::/7`, `fe80::/10`, and an IPv4-mapped address of any IPv4 range
+  here), or a name under `.localhost`, `.local`, `.internal` or `.home.arpa`. A
+  client SHOULD treat as private any other name it knows resolves only on a
+  private network. It MAY treat an overlay network's whole
   domain as private, such as Tailscale's `*.ts.net`: most of its names resolve only
   on a tailnet, and the few that are public cost only a relay it does not learn.
 - Relays that pass SHOULD be remembered for later sessions, so that a device prefers
