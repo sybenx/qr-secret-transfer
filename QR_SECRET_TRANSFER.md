@@ -172,8 +172,9 @@ Implementations MUST ignore tags they do not recognise.
 Profiles are defined outside this document, so that a new kind of payload never
 requires a change to it. The profiles published with this specification are listed
 in [`profiles/`](profiles/README.md): `nostr-nsec` for a whole Nostr identity key,
-`frost-share` for one share of a FROSTR threshold-signing group, and a
-non-normative example for an application's own secret.
+`frost-share` for one share of a FROSTR threshold-signing group, and two
+non-normative examples: one for an application's own secret, and one for a ticket
+redeemed with the application's server (§5.2).
 
 ### 5.1 Non-normative example
 
@@ -181,6 +182,40 @@ non-normative example for an application's own secret.
 > size. P4 check: decodes as valid base64 and parses as a JWT with a recognised
 > issuer. P5 rendering: "a token for *example.com*, issued 14 March, expiring 21
 > March." Sender prompt: "Send your example.com token to …".
+
+### 5.2 Payloads redeemed with a server
+
+A payload need not be the secret itself. A profile MAY carry a **ticket**: a value
+the Receiver presents to a server to obtain access of its own, such as a device
+credential. The Sender's long-lived credential then never leaves it, and each
+device's access can be removed on its own. A profile that carries a ticket:
+
+1. MUST NOT carry, in the ticket or beside it, a credential the Sender itself uses.
+2. MUST have the server accept the ticket once, and MUST state its lifetime, which
+   SHOULD NOT exceed 15 minutes.
+3. MUST have the Receiver redeem only the payload it commits (§9.4), and only after
+   committing it. A ticket the Receiver held and discarded is never redeemed and
+   lapses on its own: that is how the profile satisfies P6.
+4. MUST, in its P4 check, reject a ticket that names a server the Receiver is not
+   already configured to use. A Receiver configured with no server MUST name the
+   server in the P5 rendering, and redeems only once the user has confirmed it.
+   Otherwise whoever's payload is accepted chooses the server the device enrols
+   with, and so where it later sends its data.
+5. SHOULD permit `compare` and above, and SHOULD NOT permit `none`. A ticket can
+   be revoked only after it is redeemed, by removing the device it enrolled. A
+   stranger released to at `none` redeems it first, and keeps whatever it reads
+   before the removal.
+6. MUST say in the Sender's prompt (§9.1, item 1) that the other device gets access
+   of its own, and where that access is removed. The ticket's lifetime limits only
+   how long it can be redeemed, and the prompt MUST NOT present it as limiting the
+   access it buys.
+7. Is subject to §14's receive-only default for a device it enrolled, unless it
+   says that it waives it.
+
+The server SHOULD show in its device list which device redeemed each ticket, and
+SHOULD let the Sender cancel a ticket that has not been redeemed.
+[`profiles/example-pairing-ticket.md`](profiles/example-pairing-ticket.md) is a
+template in this shape.
 
 ## 6. Session and short authentication string
 
@@ -711,12 +746,18 @@ code extracts the parameters from the fragment and pairs directly, making no HTT
 request. `<host>` matters only when a *generic* camera — the platform camera app —
 scans the code and opens a browser.
 
-Using `https` rather than a custom scheme costs nothing in reach. An app that has
-claimed `<host>` through the platform's standard association — iOS Universal Links,
-Android App Links — opens directly from the link on both platforms, the same
-one-tap open a `scheme://` would give, but bound to a domain the app proved it owns
-rather than a global string any app can register. The app already serving the
-bounce page hosts that association file; nothing extra is stood up for it.
+For an app that can claim `<host>`, using `https` rather than a custom scheme costs
+nothing in reach. One that has claimed it through the platform's standard
+association — iOS Universal Links, Android App Links — opens directly from the link
+on both platforms, the same one-tap open a `scheme://` would give, but bound to a
+domain the app proved it owns rather than a global string any app can register. The
+app already serving the bounce page hosts that association file; nothing extra is
+stood up for it.
+
+A web client installed to a home screen often cannot claim `<host>`. iOS gives a
+home-screen web app no Universal Links, and Android browsers open many links in a
+tab rather than in the installed app. For such a client, a generic-camera scan
+lands on the bounce page in a browser tab.
 
 - The landing page SHOULD be a **bounce page**: it reads its own fragment, opens
   the associated app where App/Universal Links are set up, and otherwise offers the
@@ -727,6 +768,17 @@ bounce page hosts that association file; nothing extra is stood up for it.
   that script could answer the code. At `compare` and `type` that gains it a code
   that does not match; at `none` it could gain the payload, which is one more
   reason `none` suits pairings read by the client's own camera.
+- A web client that cannot claim `<host>` MAY act as the party in the tab the
+  bounce page opens, since the visitor is already on that host's own client.
+  Where the tab and the installed client do not share storage, or the client
+  cannot tell whether they do, it SHOULD say before pairing where the payload will
+  be kept, rather than leave the user to find it missing from the installed app. A
+  pairing that reaches it this way was not read by its own camera, so §9.1's
+  maximum friction applies.
+- The bounce page SHOULD be served at a path of its own. A client MUST NOT read a
+  pairing URI's fragment as parameters of its own, or its own fragment parameters
+  as a pairing URI. Where the two share a path, it tells them apart by the §11.2
+  parameters `v` and `p` before acting on either.
 - A showing device with no host of its own still pairs by the peer's own camera;
   the `<host>` it names serves only the generic-camera fallback.
 - The extra friction §12.1 requires for a pasted URI applies identically to an
@@ -1183,15 +1235,18 @@ candidate, or aborts if none remain.
 
 ## 14. Policy
 
-- Any party holding a secret MAY act as Sender, subject to profile restrictions
-  (§5).
-- A party that received a secret by transfer defaults to **receive-only**. The
-  toggle is one action, unguarded, and the transfer screen shows it inline ("This
-  device is receive-only — allow sending?") rather than hiding it.
+- Any party holding a secret, or able to issue a profile's payload, MAY act as
+  Sender, subject to profile restrictions (§5).
+- A party that obtained its access by transfer defaults to **receive-only**,
+  whatever it would send: the payload it received, or a fresh one it would issue,
+  such as a ticket (§5.2). A profile whose payload is issued fresh for each
+  transfer MAY waive this default, and if it does MUST say so. The toggle is one
+  action, unguarded, and the transfer screen shows it inline ("This device is
+  receive-only — allow sending?") rather than hiding it.
 - **Enabling sending MUST expire.** It authorises the transfer at hand, or a
   bounded period the user is shown, and then reverts. It MUST NOT be a permanent
   setting.
-- Every transfer that moved a secret MUST write a local record: timestamp,
+- Every transfer that moved a payload MUST write a local record: timestamp,
   profile, transport, the code this device computed for the peer it completed
   with, that peer's burner, the check level, and the multiple-responder flag. A
   Sender writes it from the moment of release, whatever happens afterwards; a
@@ -1340,6 +1395,16 @@ pair. The text changed as follows:
 Since the move, §11.3a defines a private-network address, which it had used
 without defining; the obvious reading missed the shared space `100.64/10`
 ([#8](https://github.com/sybenx/qr-secret-transfer/issues/8)).
+§5.2 now says what a profile adds when its payload is a ticket the Receiver
+redeems with a server rather than the secret itself, and `profiles/` has a template
+in that shape ([#5](https://github.com/sybenx/qr-secret-transfer/issues/5)).
+§11.2a covers a web client that cannot claim `<host>`, such as one installed to a
+home screen, which may act as the party in the bounce page's tab, and keeps a
+pairing URI's fragment apart from the app's own
+([#6](https://github.com/sybenx/qr-secret-transfer/issues/6)).
+§14's receive-only default covers a device that obtained its access by transfer,
+whatever it would send, unless its profile waives it
+([#7](https://github.com/sybenx/qr-secret-transfer/issues/7)).
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`
