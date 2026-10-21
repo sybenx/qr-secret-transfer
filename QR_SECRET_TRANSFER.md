@@ -172,8 +172,9 @@ Implementations MUST ignore tags they do not recognise.
 Profiles are defined outside this document, so that a new kind of payload never
 requires a change to it. The profiles published with this specification are listed
 in [`profiles/`](profiles/README.md): `nostr-nsec` for a whole Nostr identity key,
-`frost-share` for one share of a FROSTR threshold-signing group, and a
-non-normative example for an application's own secret.
+`frost-share` for one share of a FROSTR threshold-signing group, and two
+non-normative examples: one for an application's own secret, and one for a ticket
+redeemed with the application's server (§5.2).
 
 ### 5.1 Non-normative example
 
@@ -181,6 +182,38 @@ non-normative example for an application's own secret.
 > size. P4 check: decodes as valid base64 and parses as a JWT with a recognised
 > issuer. P5 rendering: "a token for *example.com*, issued 14 March, expiring 21
 > March." Sender prompt: "Send your example.com token to …".
+
+### 5.2 Payloads redeemed with a server
+
+A payload need not be the secret itself. A profile MAY carry a **ticket**: a value
+the Receiver presents to a server to obtain access of its own, such as a device
+credential. The Sender's long-lived credential then never leaves it, and each
+device's access can be removed on its own. A profile that carries a ticket:
+
+1. MUST NOT carry, in the ticket or beside it, a credential the Sender itself uses.
+2. MUST have the server accept the ticket once, and MUST state its lifetime, which
+   SHOULD NOT exceed 15 minutes.
+3. MUST have the Receiver redeem only the payload it commits (§9.4), and only after
+   committing it. A ticket the Receiver held and discarded is never redeemed and
+   lapses on its own: that is how the profile satisfies P6.
+4. MUST, in its P4 check, reject a ticket that names a server the Receiver is not
+   already configured to use. A Receiver configured with no server MUST name the
+   server in the P5 rendering, and redeems only once the user has confirmed it.
+   Otherwise whoever's payload is accepted chooses the server the device enrols
+   with, and so where it later sends its data.
+5. SHOULD permit `compare` and above, and SHOULD NOT permit `none`. A ticket can
+   be revoked only after it is redeemed, by removing the device it enrolled. A
+   stranger released to at `none` redeems it first, and keeps whatever it reads
+   before the removal.
+6. MUST say in the Sender's prompt (§9.1, item 1) that the other device gets access
+   of its own, and where that access is removed. The ticket's lifetime limits only
+   how long it can be redeemed, and the prompt MUST NOT present it as limiting the
+   access it buys.
+
+The server SHOULD show in its device list which device redeemed each ticket, and
+SHOULD let the Sender cancel a ticket that has not been redeemed.
+[`profiles/example-pairing-ticket.md`](profiles/example-pairing-ticket.md) is a
+template in this shape.
 
 ## 6. Session and short authentication string
 
@@ -1340,6 +1373,9 @@ pair. The text changed as follows:
 Since the move, §11.3a defines a private-network address, which it had used
 without defining; the obvious reading missed the shared space `100.64/10`
 ([#8](https://github.com/sybenx/qr-secret-transfer/issues/8)).
+§5.2 now says what a profile adds when its payload is a ticket the Receiver
+redeems with a server rather than the secret itself, and `profiles/` has a template
+in that shape ([#5](https://github.com/sybenx/qr-secret-transfer/issues/5)).
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`

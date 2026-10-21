@@ -232,3 +232,21 @@ network. A tailnet relay could be learned from a report and remembered.
 Resolved: §11.3a defines the term, adding `100.64/10`, `.home.arpa` and IPv4-mapped
 IPv6 addresses, and lets a client treat an overlay network's domain, such as
 `*.ts.net`, as private. `isPrivateHost` matches.
+
+### No guidance for a payload that is a ticket redeemed with a server
+
+**Document:** QR_SECRET_TRANSFER.md, profiles/README.md · **Section:** §5, §4 P4 and P6, §9.2 · **Kind:** ambiguity · [#5](https://github.com/sybenx/qr-secret-transfer/issues/5)
+
+The only template, `example-sync-key`, moves the secret itself. An app with a
+server of its own should instead move a single-use ticket that the Receiver
+redeems for access of its own. Nothing said three things that shape doesn't make
+obvious: that P4 must pin the redeeming server to the Receiver's own configuration,
+or the Sender chooses where the device enrols; that P6 then rests on the ticket
+lapsing, so the Receiver must redeem only what it commits; and which check level a
+ticket deserves, since it is revocable only after a stranger has redeemed it.
+
+Resolved: §5.2 states what a profile carrying a ticket adds: single use, a
+lifetime of at most 15 minutes recommended, redeeming only after commit, the P4
+server check, `compare` and above, and a prompt that doesn't present the lifetime
+as limiting the access. `profiles/example-pairing-ticket.md` is a template in that
+shape, and `profiles/README.md` says which example to start from.

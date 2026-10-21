@@ -14,6 +14,7 @@ for a new kind of secret. Anyone can write one. The ones published here:
 | [`nostr-nsec`](nostr-nsec.md) | A whole Nostr identity key, between Nostr clients | `type` | No (NIP-49 `ncryptsec` instead) | Draft |
 | [`frost-share`](frost-share.md) | One share of a FROSTR threshold-signing group, with its group package | `none` when the Sender read the Receiver's URI itself, otherwise `compare` | Yes, passphrase container | Draft |
 | [`example-sync-key`](example-sync-key.md) | A random key that lets a second device share an app's saved state, with no account | `type`, or `compare` once the app can reset sync | No | Example, not for use as is |
+| [`example-pairing-ticket`](example-pairing-ticket.md) | A single-use ticket the second device redeems with the app's own server for access of its own | `compare` | No | Example, not for use as is |
 
 The demo page in this repository uses a fourth, `qrst-demo-text`, defined in
 [`src/core/profile.ts`](../src/core/profile.ts): a short piece of text, for trying
@@ -21,7 +22,16 @@ the mechanism with made-up values.
 
 ## Writing a profile
 
-Copy [`example-sync-key.md`](example-sync-key.md) and answer each item of QRST §5:
+Start from one of the two examples:
+
+- [`example-sync-key.md`](example-sync-key.md) when the payload is the secret
+  itself, as it must be for an app with no server of its own;
+- [`example-pairing-ticket.md`](example-pairing-ticket.md) when the app has a
+  server that can enrol a device. The Receiver redeems a single-use ticket for
+  access of its own, and the Sender's own credential never moves. QRST §5.2 lists
+  what such a profile adds.
+
+Then answer each item of QRST §5:
 
 1. The payload encoding and what it means.
 2. Its maximum size, if larger than 2048 bytes. A larger maximum costs relays
