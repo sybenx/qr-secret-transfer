@@ -266,3 +266,19 @@ can't MAY act as the party in the tab, SHOULD say before pairing where the paylo
 will be kept when it can't confirm the tab shares storage with the installed app,
 and gets §9.1's maximum friction. The bounce page SHOULD have a path of its own,
 and a client MUST NOT confuse the two kinds of fragment.
+
+### The receive-only default, when the Sender issues a fresh payload
+
+**Document:** QR_SECRET_TRANSFER.md · **Section:** §14, §5.2 · **Kind:** ambiguity · [#7](https://github.com/sybenx/qr-secret-transfer/issues/7)
+
+§14 made "a party that received a secret by transfer" receive-only by default.
+For a profile whose Sender issues something fresh each time, such as a ticket
+(§5.2), there were two readings. In one, a device enrolled by transfer needs the
+expiring toggle to issue a ticket, so access spreads one deliberate step at a time.
+In the other, the device never received anything it could pass on, so issuing is
+unrestricted.
+
+Resolved: the default covers a party that obtained its access by transfer,
+whatever it would send. A profile whose payload is issued fresh for each transfer
+MAY waive it, and must say so (§5.2, item 7). The record §14 requires covers every
+payload moved, not only secrets.

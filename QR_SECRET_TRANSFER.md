@@ -209,6 +209,8 @@ device's access can be removed on its own. A profile that carries a ticket:
    of its own, and where that access is removed. The ticket's lifetime limits only
    how long it can be redeemed, and the prompt MUST NOT present it as limiting the
    access it buys.
+7. Is subject to §14's receive-only default for a device it enrolled, unless it
+   says that it waives it.
 
 The server SHOULD show in its device list which device redeemed each ticket, and
 SHOULD let the Sender cancel a ticket that has not been redeemed.
@@ -1233,15 +1235,18 @@ candidate, or aborts if none remain.
 
 ## 14. Policy
 
-- Any party holding a secret MAY act as Sender, subject to profile restrictions
-  (§5).
-- A party that received a secret by transfer defaults to **receive-only**. The
-  toggle is one action, unguarded, and the transfer screen shows it inline ("This
-  device is receive-only — allow sending?") rather than hiding it.
+- Any party holding a secret, or able to issue a profile's payload, MAY act as
+  Sender, subject to profile restrictions (§5).
+- A party that obtained its access by transfer defaults to **receive-only**,
+  whatever it would send: the payload it received, or a fresh one it would issue,
+  such as a ticket (§5.2). A profile whose payload is issued fresh for each
+  transfer MAY waive this default, and if it does MUST say so. The toggle is one
+  action, unguarded, and the transfer screen shows it inline ("This device is
+  receive-only — allow sending?") rather than hiding it.
 - **Enabling sending MUST expire.** It authorises the transfer at hand, or a
   bounded period the user is shown, and then reverts. It MUST NOT be a permanent
   setting.
-- Every transfer that moved a secret MUST write a local record: timestamp,
+- Every transfer that moved a payload MUST write a local record: timestamp,
   profile, transport, the code this device computed for the peer it completed
   with, that peer's burner, the check level, and the multiple-responder flag. A
   Sender writes it from the moment of release, whatever happens afterwards; a
@@ -1397,6 +1402,9 @@ in that shape ([#5](https://github.com/sybenx/qr-secret-transfer/issues/5)).
 home screen, which may act as the party in the bounce page's tab, and keeps a
 pairing URI's fragment apart from the app's own
 ([#6](https://github.com/sybenx/qr-secret-transfer/issues/6)).
+§14's receive-only default covers a device that obtained its access by transfer,
+whatever it would send, unless its profile waives it
+([#7](https://github.com/sybenx/qr-secret-transfer/issues/7)).
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`
