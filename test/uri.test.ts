@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UriError, buildUri, looksLikePairing, normalizeOrigin, normalizeRelayUrl, npubEncode, parseUri, scannerRole, showingMode } from '../src/core/index.ts';
+import { UriError, buildHandoffUri, buildUri, isHandoff, looksLikePairing, normalizeOrigin, normalizeRelayUrl, npubEncode, parseUri, scannerRole, showingMode } from '../src/core/index.ts';
 
 const pub = '7208881482c8995728e76633bcdf0ebb65155c8f4979a4e766713f374a5d8152';
 const params = {
@@ -155,5 +155,36 @@ describe('relays on this machine', () => {
     for (const h of ['relay.example.com', '8.8.8.8', '172.32.0.1', '100.63.255.255', '100.128.0.1', 'ts.net.example.com', 'home.arpa.example', new URL('wss://[::ffff:8.8.8.8]').hostname]) {
       expect(isPrivateHost(h), h).toBe(false);
     }
+  });
+});
+
+describe('the qrst: handoff (§11.2c)', () => {
+  it('carries the same parameters, with the key as the host', () => {
+    const handoff = buildHandoffUri(params);
+    expect(handoff.startsWith(`qrst://${npubEncode(pub)}?v=1&mode=offer&p=qrst-demo-text&check=compare&token=`)).toBe(true);
+    expect(handoff).not.toContain('npub=');
+    expect(isHandoff(handoff)).toBe(true);
+    expect(isHandoff(buildUri('https://qrst.example/', params))).toBe(false);
+    expect(looksLikePairing(handoff)).toBe(true);
+    expect(parseUri(handoff)).toEqual(params);
+  });
+
+  it('carries any profile, unlike a profile scheme', () => {
+    expect(parseUri(buildHandoffUri({ ...params, profile: 'nostr-nsec' })).profile).toBe('nostr-nsec');
+  });
+
+  it('is validated like the https form', () => {
+    const handoff = buildHandoffUri(params);
+    expect(code(() => parseUri(handoff.replace('v=1', 'v=2')))).toBe('unknown-version');
+    expect(code(() => parseUri(handoff.replace(/token=[0-9a-f]+/, 'token=abc')))).toBe('bad-token');
+    const npub = npubEncode(pub);
+    const broken = npub.slice(0, -1) + (npub.endsWith('q') ? 'p' : 'q');
+    expect(code(() => parseUri(handoff.replace(npub, broken)))).toBe('bad-key');
+  });
+
+  it('takes no other scheme, since this client registers no profile scheme (§12.3)', () => {
+    const other = buildHandoffUri(params).replace(/^qrst:/, 'frost:');
+    expect(isHandoff(other)).toBe(false);
+    expect(code(() => parseUri(other))).toBe('not-a-pairing-link');
   });
 });

@@ -77,8 +77,9 @@ The wire protocol of [`QR_SECRET_TRANSFER.md`](QR_SECRET_TRANSFER.md) 1.6-draft:
   (NIP-59 §4), which relays do not store, over NIP-44 v2, with true timestamps and the
   attribution check, checked against the official NIP-44 vectors and against
   `nostr-tools` in both directions;
-- the pairing link (§11.2), the bounce page (§11.2a), and how a code is presented
-  (§11.2b);
+- the pairing link (§11.2), the bounce page (§11.2a), how a code is presented
+  (§11.2b), and the `qrst:` handoff to an installed app (§11.2c), which the bounce
+  page offers and the paste field accepts;
 - the release prompt, the three levels of checking the code, and the restart
   throttle (§9), as far as code can enforce them, and the acceptance confirmation;
 - the one-time token in every pairing link (§11.2, §11.4);
