@@ -10,8 +10,11 @@ import {
   type Outcome,
   type PairingParams,
   type Role,
+  HANDOFF_SCHEME,
   UriError,
+  buildHandoffUri,
   demoText,
+  isHandoff,
   looksLikePairing,
   parseUri,
   relayPolicy,
@@ -85,7 +88,8 @@ const field = new BitField(document.getElementById('bits') as HTMLCanvasElement)
 
 // ---- state ----------------------------------------------------------------------------
 
-type Pairing = { params: PairingParams; viaCamera: boolean };
+/** `handoff`: it arrived in the `qrst:` form of §11.2c, so at least `compare` applies. */
+type Pairing = { params: PairingParams; viaCamera: boolean; handoff: boolean };
 
 type Screen =
   | { name: 'home' }
@@ -188,7 +192,9 @@ function startShowing(): void {
 function startJoining(pairing: Pairing): void {
   withInterferenceNotice(() => {
     try {
-      attach(Transfer.join({ ...deps, check: ownCheck() }, pairing.params, { viaCamera: pairing.viaCamera }, role === 'sender' ? secret : undefined));
+      // §11.2c: a code handed over by the qrst: scheme came through whatever app claims it.
+      const check = pairing.handoff ? stricter(ownCheck(), 'compare') : ownCheck();
+      attach(Transfer.join({ ...deps, check }, pairing.params, { viaCamera: pairing.viaCamera }, role === 'sender' ? secret : undefined));
     } catch (error) {
       go({ name: 'refused', title: 'That could not be started', detail: error instanceof Error ? error.message : String(error) });
     }
@@ -230,7 +236,8 @@ function onPairing(text: string, viaCamera: boolean, confirmFirst = false): stri
   if (refusal === 'blocked-peer') {
     return 'Digits already failed to match that device’s QR code within the last hour. Ask the other device for a new QR code.';
   }
-  const pairing = { params, viaCamera };
+  const handoff = isHandoff(text);
+  const pairing = { params, viaCamera: viaCamera && !handoff, handoff };
   if (confirmFirst) {
     go({ name: 'incoming', pairing, link: text });
     return undefined;
@@ -463,6 +470,14 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
     none: 'until you confirm. No digits are checked, because both devices are set to “Confirm only”',
   };
   const copied = h('span', { class: 'fine', role: 'status' });
+  // §11.2c: an installed app from anyone can take this code, by the scheme every
+  // implementation registers. Only when asked, since it hands the token to that app.
+  const handoff = buildHandoffUri(params);
+  const openInApp = () => {
+    location.href = /Android/i.test(navigator.userAgent)
+      ? `intent://${handoff.slice(`${HANDOFF_SCHEME}://`.length)}#Intent;scheme=${HANDOFF_SCHEME};end`
+      : handoff;
+  };
   return [
     title(becomes === 'sender' ? 'This link asks this device to send a secret' : 'This link offers this device a secret'),
     h(
@@ -482,6 +497,7 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
     h('p', { class: 'fine' }, 'This link was opened, not scanned with this page’s own camera, so this page has no evidence the QR code was ever in front of you.'),
     actions(
       button(becomes === 'sender' ? 'Continue as the sender' : 'Continue as the receiver', () => proceedWith(s.pairing), 'primary', { id: 'incoming-go' }),
+      button('Open in an installed app', openInApp, 'plain', { id: 'incoming-app' }),
       button('Copy the link', async () => {
         copied.textContent = (await copyText(s.link)) ? 'Copied.' : 'Copying is blocked here; select the address bar instead.';
       }),

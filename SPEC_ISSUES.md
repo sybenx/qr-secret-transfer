@@ -282,3 +282,22 @@ Resolved: the default covers a party that obtained its access by transfer,
 whatever it would send. A profile whose payload is issued fresh for each transfer
 MAY waive it, and must say so (§5.2, item 7). The record §14 requires covers every
 payload moved, not only secrets.
+
+### A bounce page can't reach another implementer's app
+
+**Document:** QR_SECRET_TRANSFER.md · **Section:** §11.2, §11.2a, §12.3 · **Kind:** design disagreement
+
+§11.2a had the bounce page open "the associated app where App/Universal Links are
+set up". Only the app whose host it is can be associated. A code from one client
+meant for another implementer's app (a web client's code, answered by a key held in
+a signer app) has no way into that app from a generic camera except copy and paste,
+and §11.2 said the binding defines no scheme. A shared host that lists every app in
+one association file would make its operator a dependency of every implementation
+and give its script every token.
+
+Resolved: §11.2c defines `qrst://<npub>?…`, the §12.3 form for any profile, which
+every implementation registers. A bounce page offers it as a control beside the
+copyable `https` URI and never follows it unasked; it is never shown as a QR. A
+pairing that arrives by it gets §9.1's maximum friction, §12.1's extra friction for
+`mode=offer`, and at least `compare`. The QR stays `https` on the showing client's
+own host.

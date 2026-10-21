@@ -692,10 +692,10 @@ NIP-59's `created_at` randomisation maps to no row above and is **not** used; se
 
 The pairing address is a single `https` link. Every parameter lives in the URL
 **fragment**, so that neither the burner key nor the relay list reaches the host's
-server or its logs. This binding defines no custom URI scheme: "qrst" is the name
-of the mechanism, not a `scheme://`, and MAY appear in `<path>`. A profile MAY
-register one as a second carrier for pasting and deep links (§12.3); the QR is
-always this `https` form.
+server or its logs. The QR is always this `https` form, and "qrst" MAY appear in
+`<path>`. Two custom schemes carry the same parameters for handing a URI to an app
+rather than for showing it: `qrst:`, which every implementation registers (§11.2c),
+and a profile's own scheme, if it registers one (§12.3).
 
 ```
 https://<host>/<path>#v=1&mode=<offer|request>&p=<profile-id>&npub=<npub>&check=<none|compare|type>&token=<hex>[&relay=<wss url>]*[&origin=<claimed-origin>]
@@ -752,7 +752,8 @@ association — iOS Universal Links, Android App Links — opens directly from t
 on both platforms, the same one-tap open a `scheme://` would give, but bound to a
 domain the app proved it owns rather than a global string any app can register. The
 app already serving the bounce page hosts that association file; nothing extra is
-stood up for it.
+stood up for it. Any other app, including every client from another implementer,
+cannot claim `<host>`, and the bounce page reaches it by the handoff of §11.2c.
 
 A web client installed to a home screen often cannot claim `<host>`. iOS gives a
 home-screen web app no Universal Links, and Android browsers open many links in a
@@ -761,8 +762,8 @@ lands on the bounce page in a browser tab.
 
 - The landing page SHOULD be a **bounce page**: it reads its own fragment, opens
   the associated app where App/Universal Links are set up, and otherwise offers the
-  parameters as copyable text — acting as a party itself only if the visitor
-  chooses that host's own client. Because the fragment never reaches the server,
+  `qrst:` handoff of §11.2c and the parameters as copyable text — acting as a party
+  itself only if the visitor chooses that host's own client. Because the fragment never reaches the server,
   the page can be entirely static, and the host's server learns nothing. The
   page's own script does read the fragment, token included, so whoever controls
   that script could answer the code. At `compare` and `type` that gains it a code
@@ -809,6 +810,43 @@ This specification defines no mark of its own.
 
 Implementations MUST NOT relax any consent step of §9 on the basis of anything
 rendered on or beside the code.
+
+### 11.2c The `qrst:` handoff
+
+A code made by one client is often meant for another. A web client shows it, and
+the key that should answer it lives in an app from a different implementer. That
+app cannot claim the web client's `<host>` (§11.2a), and no web client can list
+every app that implements QRST in its association file. So a bounce page hands the
+pairing URI to an installed app by a scheme every implementation registers:
+
+```
+qrst://<npub>?v=1&mode=<mode>&p=<profile-id>&check=<level>&token=<hex>[&relay=<wss url>]*[&origin=<claimed-origin>]
+```
+
+The parameters are those of §11.2, in the same encoding, with the burner key in
+place of the host and path and the rest as the query, as in §12.3. Unlike a
+profile's own scheme, `qrst:` carries any profile.
+
+- A `qrst:` URI is a handoff between programs on one device. It MUST NOT be shown
+  as a QR, and a client MUST NOT offer it for copying in place of the `https` URI:
+  a generic camera on a device with no QRST app goes nowhere with it, where the
+  `https` form lands on a page that explains itself.
+- A bounce page SHOULD offer the handoff as a control the user activates, beside
+  the copyable `https` URI, and MUST NOT follow it unasked, since it hands the
+  token to whatever app claims the scheme. On Android it MAY be an intent URI that
+  names the scheme and no package (`intent://<npub>?…#Intent;scheme=qrst;end`), so
+  that the platform offers a choice where more than one app claims it.
+- An app that registers `qrst:` validates the URI as §11.2 requires, and says so,
+  before generating anything, when it does not implement the profile.
+- Any app can claim `qrst:`. One that receives a URI not meant for it learns a
+  burner key and a token: at `compare` and `type` that gains it a code that does
+  not match, as for the bounce page's own script (§11.2a). A pairing that arrives
+  this way was not read by the client's own camera, so §9.1's maximum friction and
+  §12.1's additional friction for `mode=offer` apply, and the contacting party MUST
+  agree at least `compare`, whatever its own setting and the profile's minimum
+  (§12.3).
+- A profile's own scheme (§12.3) remains a carrier for that profile alone; `qrst:`
+  does not replace it.
 
 ### 11.3 Transport selection
 
@@ -1167,7 +1205,7 @@ before the user's own device answers. A Sender that shows or copies its own URI 
 that URI is on a screen or a clipboard it is as good as the payload. A profile that
 permits `none` SHOULD state over which channels it does, and what an intercepted
 payload yields (§5, item 7). Whatever a profile says, a URI that reached the Sender
-through a third party, or by a custom-scheme deep link, is not a channel the Sender
+through a third party, or by a custom-scheme deep link (`qrst:` included), is not a channel the Sender
 controls, and §12.1 already asks a client not to offer `none` for a URI it knows
 will be sent through a third party.
 
@@ -1405,6 +1443,10 @@ pairing URI's fragment apart from the app's own
 §14's receive-only default covers a device that obtained its access by transfer,
 whatever it would send, unless its profile waives it
 ([#7](https://github.com/sybenx/qr-secret-transfer/issues/7)).
+§11.2c defines `qrst:`, a scheme every implementation registers, by which a bounce
+page hands a code to an installed app that cannot claim its `<host>`, such as one
+client's code meant for another implementer's app. §11.2 no longer says the binding
+defines no scheme; the QR is still always `https`.
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`

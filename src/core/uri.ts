@@ -153,14 +153,51 @@ export function buildUri(base: string, p: PairingParams): string {
   return `${hashAt < 0 ? base : base.slice(0, hashAt)}#${parts.join('&')}`;
 }
 
-/** True when a string plausibly carries pairing parameters, so the page can offer to act on it. */
-export function looksLikePairing(text: string): boolean {
-  const fragment = text.includes('#') ? text.slice(text.indexOf('#') + 1) : text;
-  return /(^|&)npub=npub1/.test(fragment) && /(^|&)v=/.test(fragment);
+/** The scheme every implementation registers, by which a bounce page hands a code to an installed app (§11.2c). */
+export const HANDOFF_SCHEME = 'qrst';
+
+/** `<scheme>://<npub>?<parameters>`: the form of §11.2c and §12.3. */
+const SCHEME_FORM = /^([a-z][a-z0-9+.-]*):\/\/(npub1[02-9ac-hj-np-z]+)\/?\?([^#]*)$/i;
+
+/**
+ * The same pairing URI in the `qrst:` handoff form (§11.2c). For handing to an app on
+ * this device only: never shown as a QR, never offered for copying.
+ */
+export function buildHandoffUri(p: PairingParams): string {
+  const fragment = buildUri('', p).slice(1);
+  const npub = npubEncode(p.pub);
+  const rest = fragment.split('&').filter((part) => part !== `npub=${npub}`);
+  return `${HANDOFF_SCHEME}://${npub}?${rest.join('&')}`;
+}
+
+/** True for a pairing URI that arrived in the `qrst:` handoff form (§11.2c). */
+export function isHandoff(text: string): boolean {
+  const m = SCHEME_FORM.exec(text.trim());
+  return m !== null && m[1]!.toLowerCase() === HANDOFF_SCHEME;
 }
 
 /**
- * Parses a pairing link, a bare fragment, or the parameters alone.
+ * The parameters of a pairing URI in whichever carrier it came: the https fragment
+ * (§11.2), or `qrst:` (§11.2c). This client registers no profile scheme of its own
+ * (§12.3), so any other scheme is not a pairing link here.
+ */
+function parameters(text: string): string | undefined {
+  const m = SCHEME_FORM.exec(text);
+  if (m) {
+    const scheme = m[1]!.toLowerCase();
+    return scheme === HANDOFF_SCHEME ? `npub=${m[2]!.toLowerCase()}&${m[3]}` : undefined;
+  }
+  return text.includes('#') ? text.slice(text.indexOf('#') + 1) : text;
+}
+
+/** True when a string plausibly carries pairing parameters, so the page can offer to act on it. */
+export function looksLikePairing(text: string): boolean {
+  const fragment = parameters(text.trim());
+  return fragment !== undefined && /(^|&)npub=npub1/.test(fragment) && /(^|&)v=/.test(fragment);
+}
+
+/**
+ * Parses a pairing link, its `qrst:` handoff form, a bare fragment, or the parameters alone.
  *
  * Rejects an unknown `v`, a missing `mode` and a missing `p` as §11.2 requires, and
  * verifies the bech32 checksum on the key, which is what catches a transcription error
@@ -170,9 +207,8 @@ export function looksLikePairing(text: string): boolean {
  */
 export function parseUri(input: string): PairingParams {
   const text = input.trim();
-  const fragment = text.includes('#') ? text.slice(text.indexOf('#') + 1) : text;
   if (!looksLikePairing(text)) throw new UriError('not-a-pairing-link');
-  const q = new URLSearchParams(fragment);
+  const q = new URLSearchParams(parameters(text)!);
 
   if (q.get('v') !== String(VERSION)) throw new UriError('unknown-version');
   const mode = q.get('mode');
