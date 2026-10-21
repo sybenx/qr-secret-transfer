@@ -42,7 +42,12 @@ test('Flow A: the receiver shows a code, the sender pastes its link', async ({ b
   // Enter does nothing: the affirmative control has no default keyboard action.
   await phone.keyboard.press('Enter');
   await expect(phone.locator('.screen.is-release')).toBeVisible();
+  // §9.1: until the user has acted, sending is unavailable and does not lead.
+  expect(await phone.locator('#release-send').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgb(0, 0, 0)');
   await phone.check('#agree');
+  // Once the user's own act has enabled it, it may become the primary control.
+  await expect(phone.locator('#release-send')).toBeEnabled();
+  expect(await phone.locator('#release-send').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(0, 0, 0)');
   await shot(phone, 'a4-phone-code-typed');
   await phone.click('#release-send');
 
@@ -170,11 +175,13 @@ test('the code entry takes digits only, one per box, and never from the clipboar
     expect(await box.getAttribute('autocomplete')).toBe('off');
     expect(await box.getAttribute('maxlength')).toBe('1');
   }
-  // Declining is first in the tab order after the form, and is the visually dominant control.
+  // Declining is first in the tab order after the form, and never smaller than sending (§9.1).
   const decline = await phone.locator('#release-decline').boundingBox();
   const send = await phone.locator('#release-send').boundingBox();
   expect(decline!.y).toBeLessThan(send!.y);
-  expect(await phone.locator('#release-decline').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(0, 0, 0)');
+  expect(decline!.width).toBeGreaterThanOrEqual(send!.width);
+  expect(decline!.height).toBeGreaterThanOrEqual(send!.height);
+  await expect(phone.locator('#release-decline')).toBeEnabled();
   await phone.click('#release-decline');
   await expect(heading(phone)).toHaveText('Nothing was sent');
   // The device that showed the code is not ended by this: it goes back to showing it (§13).
