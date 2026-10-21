@@ -250,3 +250,19 @@ lifetime of at most 15 minutes recommended, redeeming only after commit, the P4
 server check, `compare` and above, and a prompt that doesn't present the lifetime
 as limiting the access. `profiles/example-pairing-ticket.md` is a template in that
 shape, and `profiles/README.md` says which example to start from.
+
+### Installed web apps can't claim `<host>`, and fragments can collide
+
+**Document:** QR_SECRET_TRANSFER.md · **Section:** §11.2a, §12.1 · **Kind:** ambiguity · [#6](https://github.com/sybenx/qr-secret-transfer/issues/6)
+
+§11.2a said `https` "costs nothing in reach", assuming the app claims `<host>`
+through App Links or Universal Links. A web client installed to a home screen
+often can't, so a generic-camera scan lands in a browser tab, where the client may
+or may not share storage with the installed app. The section also didn't say to
+keep a pairing URI's fragment apart from fragment parameters the app reads itself.
+
+Resolved: the claim is limited to apps that can claim `<host>`. A client that
+can't MAY act as the party in the tab, SHOULD say before pairing where the payload
+will be kept when it can't confirm the tab shares storage with the installed app,
+and gets §9.1's maximum friction. The bounce page SHOULD have a path of its own,
+and a client MUST NOT confuse the two kinds of fragment.

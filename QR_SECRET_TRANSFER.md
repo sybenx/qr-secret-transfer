@@ -744,12 +744,18 @@ code extracts the parameters from the fragment and pairs directly, making no HTT
 request. `<host>` matters only when a *generic* camera — the platform camera app —
 scans the code and opens a browser.
 
-Using `https` rather than a custom scheme costs nothing in reach. An app that has
-claimed `<host>` through the platform's standard association — iOS Universal Links,
-Android App Links — opens directly from the link on both platforms, the same
-one-tap open a `scheme://` would give, but bound to a domain the app proved it owns
-rather than a global string any app can register. The app already serving the
-bounce page hosts that association file; nothing extra is stood up for it.
+For an app that can claim `<host>`, using `https` rather than a custom scheme costs
+nothing in reach. One that has claimed it through the platform's standard
+association — iOS Universal Links, Android App Links — opens directly from the link
+on both platforms, the same one-tap open a `scheme://` would give, but bound to a
+domain the app proved it owns rather than a global string any app can register. The
+app already serving the bounce page hosts that association file; nothing extra is
+stood up for it.
+
+A web client installed to a home screen often cannot claim `<host>`. iOS gives a
+home-screen web app no Universal Links, and Android browsers open many links in a
+tab rather than in the installed app. For such a client, a generic-camera scan
+lands on the bounce page in a browser tab.
 
 - The landing page SHOULD be a **bounce page**: it reads its own fragment, opens
   the associated app where App/Universal Links are set up, and otherwise offers the
@@ -760,6 +766,17 @@ bounce page hosts that association file; nothing extra is stood up for it.
   that script could answer the code. At `compare` and `type` that gains it a code
   that does not match; at `none` it could gain the payload, which is one more
   reason `none` suits pairings read by the client's own camera.
+- A web client that cannot claim `<host>` MAY act as the party in the tab the
+  bounce page opens, since the visitor is already on that host's own client.
+  Where the tab and the installed client do not share storage, or the client
+  cannot tell whether they do, it SHOULD say before pairing where the payload will
+  be kept, rather than leave the user to find it missing from the installed app. A
+  pairing that reaches it this way was not read by its own camera, so §9.1's
+  maximum friction applies.
+- The bounce page SHOULD be served at a path of its own. A client MUST NOT read a
+  pairing URI's fragment as parameters of its own, or its own fragment parameters
+  as a pairing URI. Where the two share a path, it tells them apart by the §11.2
+  parameters `v` and `p` before acting on either.
 - A showing device with no host of its own still pairs by the peer's own camera;
   the `<host>` it names serves only the generic-camera fallback.
 - The extra friction §12.1 requires for a pasted URI applies identically to an
@@ -1376,6 +1393,10 @@ without defining; the obvious reading missed the shared space `100.64/10`
 §5.2 now says what a profile adds when its payload is a ticket the Receiver
 redeems with a server rather than the secret itself, and `profiles/` has a template
 in that shape ([#5](https://github.com/sybenx/qr-secret-transfer/issues/5)).
+§11.2a covers a web client that cannot claim `<host>`, such as one installed to a
+home screen, which may act as the party in the bounce page's tab, and keeps a
+pairing URI's fragment apart from the app's own
+([#6](https://github.com/sybenx/qr-secret-transfer/issues/6)).
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`
