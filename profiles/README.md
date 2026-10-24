@@ -13,6 +13,7 @@ for a new kind of secret. Anyone can write one. The ones published here:
 |---|---|---|---|---|
 | [`nostr-nsec`](nostr-nsec.md) | A whole Nostr identity key, between Nostr clients | `type` | No (NIP-49 `ncryptsec` instead) | Draft |
 | [`frost-share`](frost-share.md) | One share of a FROSTR threshold-signing group, with its group package | `none` when the Sender read the Receiver's URI itself, otherwise `compare` | Yes, passphrase container | Draft |
+| [`signer-ticket`](signer-ticket.md) | A single-use ticket a Nostr site redeems with the user's remote signer (NIP-46) for access of its own | `none` when the signer's own camera or a verified App Link delivered the code, otherwise `compare` | No | Draft |
 | [`example-sync-key`](example-sync-key.md) | A random key that lets a second device share an app's saved state, with no account | `type`, or `compare` once the app can reset sync | No | Example, not for use as is |
 | [`example-pairing-ticket`](example-pairing-ticket.md) | A single-use ticket the second device redeems with the app's own server for access of its own | `compare` | No | Example, not for use as is |
 
