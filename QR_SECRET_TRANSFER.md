@@ -438,9 +438,20 @@ Before any payload is sent, the Sender MUST present a prompt that:
 scanned a QR believes they are signing in. For example: *"This is not a login.
 You are about to give this device your key."*
 
-**Declining MUST be the prominent control.** The affirmative control MUST NOT be
-visually dominant, MUST NOT be focused or default, and MUST NOT be activated by a
-default keyboard action. Where the controls carry text, the affirmative one MUST
+**Declining MUST be the safe default, and never the harder control.** The
+affirmative control MUST NOT be focused or default, and MUST NOT be activated by a
+default keyboard action. Declining MUST be available from the moment the prompt is
+shown, and MUST be at least as large and as easy to reach as the affirmative.
+
+Where something the user does on this screen enables the affirmative — typing the
+code, confirming a comparison, or the additional act of the maximum tier below —
+the affirmative MUST be visibly unavailable until then, and MAY then become the
+visually primary control. Where nothing precedes it, declining remains the
+prominent control. A primary control that declines teaches a user who means to
+send to look past it, and to press the other one without reading, which is the
+reflex this prompt exists to break.
+
+Where the controls carry text, the affirmative one MUST
 describe the transfer rather than express agreement: "Send my key to that device"
 rather than "OK" or "Continue".
 
@@ -1443,6 +1454,9 @@ pairing URI's fragment apart from the app's own
 §14's receive-only default covers a device that obtained its access by transfer,
 whatever it would send, unless its profile waives it
 ([#7](https://github.com/sybenx/qr-secret-transfer/issues/7)).
+§9.1 keeps declining the safe default and never the harder control, but lets the
+affirmative become the primary control once something the user did on the prompt
+has enabled it ([#12](https://github.com/sybenx/qr-secret-transfer/issues/12)).
 §11.2c defines `qrst:`, a scheme every implementation registers, by which a bounce
 page hands a code to an installed app that cannot claim its `<host>`, such as one
 client's code meant for another implementer's app. §11.2 no longer says the binding
