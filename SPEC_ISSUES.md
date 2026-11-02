@@ -301,3 +301,18 @@ copyable `https` URI and never follows it unasked; it is never shown as a QR. A
 pairing that arrives by it gets §9.1's maximum friction, §12.1's extra friction for
 `mode=offer`, and at least `compare`. The QR stays `https` on the showing client's
 own host.
+
+### A prominent "Don't send" worked against the user once sending was gated
+
+**Document:** QR_SECRET_TRANSFER.md · **Section:** §9.1 · **Kind:** design disagreement · [#12](https://github.com/sybenx/qr-secret-transfer/issues/12)
+
+§9.1 made declining the visually prominent control. Where sending is already
+gated by something the user does on the prompt (typing the code, confirming a
+comparison, the maximum tier's extra act), that adds nothing to accident
+prevention. And because a large filled button reads as "continue", it caused
+accidental aborts and taught users to press the small control without reading.
+
+Resolved: declining is the safe default, available from the start and never
+smaller or harder to reach. A gated affirmative is visibly unavailable until the
+user's act enables it, and may then become the primary control. Where nothing
+gates it, declining stays the prominent control. The rest of §9.1 is unchanged.

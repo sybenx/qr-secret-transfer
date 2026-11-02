@@ -548,31 +548,21 @@ input[type='url'] {
   accent-color: var(--ink);
 }
 
-/* §9.1: declining is the prominent control. The control that sends is never the easy one. */
+/* §9.1: every control the same size, so declining is never the harder one. Sending
+   stays off, and plain, until the user's own act on this screen turns it on. */
 .actions-release {
   display: grid;
   gap: 0.75rem;
 }
 
-.actions-release .btn-primary {
+.actions-release .btn {
   padding-block: 1rem;
-  font-size: 1.3125rem;
+  font-size: 1.125rem;
+  text-align: center;
+}
+
+.actions-release .btn-primary {
   font-weight: 800;
-  text-align: center;
-}
-
-.actions-release .btn-plain {
-  background: none;
-  border-width: 1px;
-  font-weight: 400;
-  font-size: 0.9375rem;
-  text-align: center;
-}
-
-.actions-release .btn-plain:hover:not(:disabled) {
-  background: none;
-  color: var(--ink);
-  border-width: 2px;
 }
 
 /* §11.2b: a code is never shown bare, and one that makes its scanner a Sender weighs more. */
