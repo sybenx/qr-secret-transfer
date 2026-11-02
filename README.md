@@ -23,6 +23,8 @@ This repository is three things:
   transfer is started.
 - **A protocol core** (`src/core/`) with no I/O, no DOM and no timers, plus the browser
   adapters that run it over relays (`src/web/`).
+- **The same core and relay layer in Kotlin** (`kotlin/`), a port line for line, for
+  Android and JVM apps. QRST Signer and Cosign build on it.
 
 **Status: a draft protocol and unaudited code.** Use made-up values, not real secrets.
 The event kinds are provisional and interoperability is not promised.
@@ -148,6 +150,7 @@ src/web/      browser adapters
   store.ts      what a device remembers: relays, throttle, transfer log
   transfer.ts   one transfer end to end, headless
 src/demo/     the page
+kotlin/       the Kotlin port of src/core and src/web, as a Gradle build
 tools/        a local relay with fault injection, a static server, and
               payload_ceiling.py, which computes the wire size of a payload
 test/         unit, integration and browser tests
@@ -182,6 +185,9 @@ npm run check        # typecheck, unit and integration tests, build, browser tes
   as the message meant for it goes out, at every step of both flows, over a relay that
   keeps nothing and over one that behaves like strfry (keeps ephemeral events five
   minutes, refuses a repeated id and anything over a minute old).
+- **Kotlin** (`kotlin/`, `./gradlew :qrst:test` on Java 21 after `npm ci`): the same
+  vectors, the state machine, and both flows in both directions against the
+  TypeScript code here, over the local relay.
 - **Browser** (`test/e2e`): two browser contexts as two devices, through both flows;
   the page's own camera reading a code from a fake video feed; the release prompt's
   rules; relay selection on screen; and that the page asks nothing of the network
