@@ -39,7 +39,7 @@ piece needs the box, because adding a member uses the box as one of its two help
 | 4. P5 rendering | "Your account *short npub*". |
 | 5. Sender's prompt | **"Add *name*?"** with **Add** and **Not now**. See "Departures" below. |
 | 6. Additional tags | None in messages. The pairing URI carries one extra parameter, `invite`, below. |
-| 7. Lowest check level | `none`, **only** when the Sender read the `https` code with its own camera, or received it by a verified App Link to that one app. `compare` for a pasted link, for the `qrst:` handoff and for any custom scheme. |
+| 7. Lowest check level | `none`, **only** when the Sender read the `https` code with its own camera, inside the app. `compare` for everything else: a pasted link, the `https` code opened as a link (an App Link proves which app opens it, not who wrote the link), the `qrst:` handoff and any custom scheme. |
 | 8. Offline tier | Not permitted. |
 
 ## The `invite` parameter
