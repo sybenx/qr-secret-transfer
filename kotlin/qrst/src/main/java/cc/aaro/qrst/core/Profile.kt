@@ -89,4 +89,4 @@ object DemoTextProfile : Profile<String> {
     }
 }
 
-val PROFILES: Map<String, Profile<*>> = listOf(NsecProfile, DemoTextProfile).associateBy { it.id }
+val PROFILES: Map<String, Profile<*>> = listOf(NsecProfile, DemoTextProfile, KeykinDeviceProfile).associateBy { it.id }

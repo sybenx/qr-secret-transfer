@@ -9,3 +9,4 @@ export * from './sas.ts';
 export * from './session.ts';
 export * from './uri.ts';
 export * from './wrap.ts';
+export * from './keykin-device.ts';

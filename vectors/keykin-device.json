@@ -1,0 +1,75 @@
+{
+  "profile": "keykin-device",
+  "note": "Fixtures only. No key here belongs to anybody.",
+  "invite": {
+    "text": "{\"keykin\":2,\"invite\":{\"key\":\"1b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f\",\"name\":\"Galaxy Tab\",\"chip\":\"02abababababababababababababababababababababababababababababababab\"}}",
+    "member_secret": "0101010101010101010101010101010101010101010101010101010101010101"
+  },
+  "uri": "https://marble.syb.lol/add#v=1&mode=offer&p=keykin-device&npub=npub12v07vp5px3gr6ferzvez0jr84j86djpu2dlf53xrck7mmjcluvms5dn8ru&check=none&token=0123456789abcdef0123456789abcdef&relay=wss://relay.example.com&invite=eyJrZXlraW4iOjIsImludml0ZSI6eyJrZXkiOiIxYjg0YzU1NjdiMTI2NDQwOTk1ZDNlZDVhYWJhMDU2NWQ3MWUxODM0NjA0ODE5ZmY5YzE3ZjVlOWQ1ZGQwNzhmIiwibmFtZSI6IkdhbGF4eSBUYWIiLCJjaGlwIjoiMDJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiYWJhYmFiIn19",
+  "join": {
+    "value": {
+      "addr": "https://box.example:7461",
+      "boxKey": "4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
+      "npub": "17162c921dc4d2518f9a101db33695df1afb56ab82f5ff3e5da6eec3ca5cd917",
+      "loginPage": "https://account.example"
+    },
+    "content": "eyJrZXlraW4iOjIsImpvaW4iOnsiYWRkciI6Imh0dHBzOi8vYm94LmV4YW1wbGU6NzQ2MSIsImJveEtleSI6IjRkNGI2Y2QxMzYxMDMyY2E5YmQyYWViOWQ5MDBhYTRkNDVkOWVhZDgwYWM5NDIzMzc0YzQ1MWE3MjU0ZDA3NjYiLCJucHViIjoiMTcxNjJjOTIxZGM0ZDI1MThmOWExMDFkYjMzNjk1ZGYxYWZiNTZhYjgyZjVmZjNlNWRhNmVlYzNjYTVjZDkxNyIsImxvZ2luUGFnZSI6Imh0dHBzOi8vYWNjb3VudC5leGFtcGxlIn19",
+    "render": "Your account npub1zutzeys…d2x7nu"
+  },
+  "whole": {
+    "nsec": "7f7ff03d123792d6ac594bfa67bf6d0c0ab55b6b1fdb6249303fe861f1ccba9a",
+    "npub": "17162c921dc4d2518f9a101db33695df1afb56ab82f5ff3e5da6eec3ca5cd917",
+    "content": "eyJrZXlraW4iOjIsIm5zZWMiOiI3ZjdmZjAzZDEyMzc5MmQ2YWM1OTRiZmE2N2JmNmQwYzBhYjU1YjZiMWZkYjYyNDkzMDNmZTg2MWYxY2NiYTlhIn0=",
+    "render": "Your account npub1zutzeys…d2x7nu"
+  },
+  "bad": [
+    {
+      "why": "not base64",
+      "content": "!!!"
+    },
+    {
+      "why": "not JSON",
+      "content": "aGVsbG8="
+    },
+    {
+      "why": "wrong version",
+      "content": "eyJrZXlraW4iOjEsIm5zZWMiOiI3ZjdmZjAzZDEyMzc5MmQ2YWM1OTRiZmE2N2JmNmQwYzBhYjU1YjZiMWZkYjYyNDkzMDNmZTg2MWYxY2NiYTlhIn0="
+    },
+    {
+      "why": "both join and nsec",
+      "content": "eyJrZXlraW4iOjIsIm5zZWMiOiI3ZjdmZjAzZDEyMzc5MmQ2YWM1OTRiZmE2N2JmNmQwYzBhYjU1YjZiMWZkYjYyNDkzMDNmZTg2MWYxY2NiYTlhIiwiam9pbiI6eyJhZGRyIjoiaHR0cHM6Ly9ib3guZXhhbXBsZTo3NDYxIiwiYm94S2V5IjoiNGQ0YjZjZDEzNjEwMzJjYTliZDJhZWI5ZDkwMGFhNGQ0NWQ5ZWFkODBhYzk0MjMzNzRjNDUxYTcyNTRkMDc2NiIsIm5wdWIiOiIxNzE2MmM5MjFkYzRkMjUxOGY5YTEwMWRiMzM2OTVkZjFhZmI1NmFiODJmNWZmM2U1ZGE2ZWVjM2NhNWNkOTE3IiwibG9naW5QYWdlIjoiaHR0cHM6Ly9hY2NvdW50LmV4YW1wbGUifX0="
+    },
+    {
+      "why": "extra member",
+      "content": "eyJrZXlraW4iOjIsIm5zZWMiOiI3ZjdmZjAzZDEyMzc5MmQ2YWM1OTRiZmE2N2JmNmQwYzBhYjU1YjZiMWZkYjYyNDkzMDNmZTg2MWYxY2NiYTlhIiwibm90ZSI6IngifQ=="
+    },
+    {
+      "why": "upper-case key",
+      "content": "eyJrZXlraW4iOjIsIm5zZWMiOiI3RjdGRjAzRDEyMzc5MkQ2QUM1OTRCRkE2N0JGNkQwQzBBQjU1QjZCMUZEQjYyNDkzMDNGRTg2MUYxQ0NCQTlBIn0="
+    },
+    {
+      "why": "zero key",
+      "content": "eyJrZXlraW4iOjIsIm5zZWMiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn0="
+    },
+    {
+      "why": "key not below the group order",
+      "content": "eyJrZXlraW4iOjIsIm5zZWMiOiJmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmIn0="
+    },
+    {
+      "why": "join without boxKey",
+      "content": "eyJrZXlraW4iOjIsImpvaW4iOnsiYWRkciI6Imh0dHBzOi8vYm94LmV4YW1wbGU6NzQ2MSIsIm5wdWIiOiIxNzE2MmM5MjFkYzRkMjUxOGY5YTEwMWRiMzM2OTVkZjFhZmI1NmFiODJmNWZmM2U1ZGE2ZWVjM2NhNWNkOTE3In19"
+    },
+    {
+      "why": "join with a bad address",
+      "content": "eyJrZXlraW4iOjIsImpvaW4iOnsiYWRkciI6ImZ0cDovL2JveC5leGFtcGxlIiwiYm94S2V5IjoiNGQ0YjZjZDEzNjEwMzJjYTliZDJhZWI5ZDkwMGFhNGQ0NWQ5ZWFkODBhYzk0MjMzNzRjNDUxYTcyNTRkMDc2NiIsIm5wdWIiOiIxNzE2MmM5MjFkYzRkMjUxOGY5YTEwMWRiMzM2OTVkZjFhZmI1NmFiODJmNWZmM2U1ZGE2ZWVjM2NhNWNkOTE3IiwibG9naW5QYWdlIjoiaHR0cHM6Ly9hY2NvdW50LmV4YW1wbGUifX0="
+    },
+    {
+      "why": "join with a login page that is not an origin",
+      "content": "eyJrZXlraW4iOjIsImpvaW4iOnsiYWRkciI6Imh0dHBzOi8vYm94LmV4YW1wbGU6NzQ2MSIsImJveEtleSI6IjRkNGI2Y2QxMzYxMDMyY2E5YmQyYWViOWQ5MDBhYTRkNDVkOWVhZDgwYWM5NDIzMzc0YzQ1MWE3MjU0ZDA3NjYiLCJucHViIjoiMTcxNjJjOTIxZGM0ZDI1MThmOWExMDFkYjMzNjk1ZGYxYWZiNTZhYjgyZjVmZjNlNWRhNmVlYzNjYTVjZDkxNyIsImxvZ2luUGFnZSI6Imh0dHBzOi8vYWNjb3VudC5leGFtcGxlL3gifX0="
+    },
+    {
+      "why": "join with an extra member",
+      "content": "eyJrZXlraW4iOjIsImpvaW4iOnsiYWRkciI6Imh0dHBzOi8vYm94LmV4YW1wbGU6NzQ2MSIsImJveEtleSI6IjRkNGI2Y2QxMzYxMDMyY2E5YmQyYWViOWQ5MDBhYTRkNDVkOWVhZDgwYWM5NDIzMzc0YzQ1MWE3MjU0ZDA3NjYiLCJucHViIjoiMTcxNjJjOTIxZGM0ZDI1MThmOWExMDFkYjMzNjk1ZGYxYWZiNTZhYjgyZjVmZjNlNWRhNmVlYzNjYTVjZDkxNyIsImxvZ2luUGFnZSI6Imh0dHBzOi8vYWNjb3VudC5leGFtcGxlIiwieCI6MX19"
+    }
+  ]
+}

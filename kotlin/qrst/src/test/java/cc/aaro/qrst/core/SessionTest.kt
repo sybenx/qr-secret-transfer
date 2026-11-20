@@ -66,6 +66,32 @@ class SessionTest {
         assertTrue(afterPayload.isEmpty() || afterPayload.none { it is Effect.Ended })
     }
 
+    @Test fun keykinDevice_cameraScan_needsNoDigits() {
+        val gift = KeykinGift.Join("https://box.example:7461", "4d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766", "17162c921dc4d2518f9a101db33695df1afb56ab82f5ff3e5da6eec3ca5cd917")
+        val rcv = Session<KeykinGift>(Role.RECEIVER, true, KeykinDeviceProfile, secret(), env, check = CodeCheck.NONE)
+        val snd = Session(Role.SENDER, false, KeykinDeviceProfile, secret(), env, peerPub = rcv.pub, token = rcv.token, check = CodeCheck.NONE, peerCheck = CodeCheck.NONE)
+        pump(rcv, snd, snd.start(), snd)
+        assertEquals(CodeCheck.NONE, snd.view().check)
+        assertEquals(Phase.RELEASE, snd.view().phase)
+        assertNull(rcv.view().code)
+        deliver(snd.release(gift), rcv)
+        assertEquals(Phase.ACCEPT, rcv.view().phase)
+        assertEquals(gift, rcv.accept().filterIsInstance<Effect.Commit<KeykinGift>>().single().value)
+    }
+
+    @Test fun keykinDevice_pastedCode_comparesDigits() {
+        val key = Nip19.parseSecret("0000000000000000000000000000000000000000000000000000000000000003")
+        val rcv = Session<KeykinGift>(Role.RECEIVER, true, KeykinDeviceProfile, secret(), env, check = CodeCheck.NONE)
+        // The adding device did not read the code with its own camera: it asks for `compare`.
+        val snd = Session(Role.SENDER, false, KeykinDeviceProfile, secret(), env, peerPub = rcv.pub, token = rcv.token, check = CodeCheck.COMPARE, peerCheck = CodeCheck.NONE)
+        pump(rcv, snd, snd.start(), snd)
+        assertEquals(CodeCheck.COMPARE, snd.view().check)
+        assertEquals(rcv.view().code, snd.view().compare)
+        deliver(snd.confirmMatch(KeykinGift.Whole(key.copyOf())), rcv)
+        val got = rcv.accept().filterIsInstance<Effect.Commit<KeykinGift>>().single().value as KeykinGift.Whole
+        assertArrayEquals(key, got.nsec)
+    }
+
     @Test fun flowB_senderShows_receiverScans() {
         val key = secret()
         // The key is handed over only at release, as the app does after the credential check.

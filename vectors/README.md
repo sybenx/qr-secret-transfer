@@ -19,6 +19,7 @@ None belongs to anybody, and none should ever be used for anything.
 |---|---|
 | `qrst-sas.json` | QRST §6: the commit, the transcript hash, and the five digits. Uses `nostr-nsec` as its profile identifier. |
 | `frost-share-max.json` | The `frost-share` profile at its largest payload under the default maximum (a 32-member group, 2041 bytes), its P4 check, and the size of every layer of wrapping (QRST §4 P1, §11.6). |
+| `keykin-device.json` | The `keykin-device` profile: both payloads, their P5 renderings, a pairing URI carrying an invite, and payloads its P4 check must refuse. Checked by `test/keykin-device.test.ts` and the Kotlin `KeykinDeviceTest`. |
 
 The test suite (`npm test`) checks `qrst-sas.json`.
 
