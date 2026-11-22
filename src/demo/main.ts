@@ -674,6 +674,9 @@ function releaseScreen(v: TransferView<string>): Built {
   const digits = () => boxes.map((b) => b.value).join('');
   const refresh = () => {
     send.disabled = !(agree.checked && (check !== 'type' || digits().length === 5));
+    // §9.1: the affirmative may lead only once the user's own act on this screen has enabled it.
+    send.classList.toggle('btn-primary', !send.disabled);
+    send.classList.toggle('btn-plain', send.disabled);
   };
   // Described by what it does, never "OK" or "Continue"; names the claimed origin (§9.1).
   const send = button(profile.release.confirm(origin), () => {
@@ -793,11 +796,11 @@ function releaseScreen(v: TransferView<string>): Built {
       message,
       tries,
       h('label', { class: 'check', for: 'agree' }, agree, h('span', null, consent[check])),
-      // §9.1: declining is the prominent control; the affirmative is neither default nor dominant.
+      // §9.1: declining is always there and never smaller; the affirmative is never the default.
       h(
         'div',
         { class: 'actions actions-release' },
-        button(profile.release.decline, () => transfer?.decline(), 'primary', { id: 'release-decline' }),
+        button(profile.release.decline, () => transfer?.decline(), 'plain', { id: 'release-decline' }),
         send,
         check === 'compare' && differ,
       ),
