@@ -1227,7 +1227,9 @@ session-window test of §11.4.
 session** (§6): at most three responders for a Receiver that showed the QR, five
 for a Sender. A burner that has been dropped, or that sent ABORT, cannot contact
 again; a slot is never handed out twice. Further responders are turned away and
-counted, and the notice below is shown.
+counted, and the notice below is shown. A turned-away responder MUST NOT be sent a
+reply of any kind, ABORT included: it gets no nonce exchange, and an answer would
+only tell whoever holds a photograph of the code that the session is live.
 
 If, within the same session, a **second or later responder** arrives, the client:
 
@@ -1447,6 +1449,8 @@ whatever it would send, unless its profile waives it
 page hands a code to an installed app that cannot claim its `<host>`, such as one
 client's code meant for another implementer's app. §11.2 no longer says the binding
 defines no scheme; the QR is still always `https`.
+§13 now says that a responder turned away at the cap is sent no reply, ABORT
+included, which is what the reference implementation already did.
 
 The profiles changed as they moved, and each file's History says how. One change is
 incompatible: `frost-share` now carries FROSTR's own credential pair (`bfshare1…`
