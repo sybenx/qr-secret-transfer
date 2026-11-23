@@ -201,15 +201,17 @@ function startJoining(pairing: Pairing): void {
   });
 }
 
+const UNUSABLE = 'That QR code or link can’t be used. Ask the other device for a new one.';
+
 const URI_PROBLEMS: Record<string, string> = {
   'not-a-pairing-link': 'That is not a QRST QR code or link.',
   'unknown-version': 'That QR code or link is from a version of QRST this page does not speak.',
-  'missing-mode': 'That QR code or link does not say which device sends and which receives.',
-  'missing-profile': 'That QR code or link does not say what kind of secret it is for.',
-  'bad-key': 'The key in that QR code or link is damaged. If you typed or pasted it, a character is wrong.',
-  'no-relays': 'That QR code or link names no relay to meet on.',
-  'bad-relay': 'That QR code or link names a relay address this page will not use.',
-  'bad-origin': 'That QR code or link makes a claim about where it came from that is not a web address.',
+  'missing-mode': UNUSABLE,
+  'missing-profile': UNUSABLE,
+  'bad-key': 'That QR code or link is damaged. If you typed or pasted it, a character is wrong.',
+  'no-relays': UNUSABLE,
+  'bad-relay': UNUSABLE,
+  'bad-origin': UNUSABLE,
 };
 
 /**
@@ -226,7 +228,7 @@ function onPairing(text: string, viaCamera: boolean, confirmFirst = false): stri
   // Everything below happens before a throwaway key is generated (§11.2).
   const refusal = Transfer.refusal(deps, params, role);
   if (refusal === 'unknown-profile') {
-    return `That QR code or link is for “${params.profile}”, which this page does not handle. It handles “${profile.id}”.`;
+    return 'That QR code or link is for a different kind of secret, which this page can’t handle.';
   }
   if (refusal === 'role-collision') {
     return role === 'sender'
@@ -361,7 +363,7 @@ function composeScreen(): Node[] {
     h('label', { for: 'secret', class: 'label' }, 'The text to send'),
     area,
     count,
-    h('p', { class: 'fine' }, 'It stays in this page’s memory until it is sent or you leave. It is not saved, and nothing is sent yet.'),
+    h('p', { class: 'fine' }, 'It is not saved, and nothing is sent yet.'),
     actions(next, button('Back', reset, 'quiet')),
   ];
 }
@@ -399,7 +401,7 @@ function methodScreen(): Node[] {
 const SCAN_PROBLEMS: Record<ScanProblem, string> = {
   denied: 'This page was not allowed to use the camera. Allow it in the browser’s site settings, or paste the link instead.',
   'no-camera': 'This device has no camera this page can use. Paste the link instead.',
-  insecure: 'A browser only lends its camera to a page loaded over https. Paste the link instead.',
+  insecure: 'The camera only works when this page is opened over https. Paste the link instead.',
   failed: 'The camera could not be started. Paste the link instead.',
 };
 
@@ -454,7 +456,7 @@ function pasteScreen(): Node[] {
     h('label', { for: 'link', class: 'label' }, 'Pairing link'),
     input,
     status,
-    h('p', { class: 'fine' }, 'On the other device, choose “Show a QR code here”, then “Copy the link”. It holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer it, so pass it only to yourself.'),
+    h('p', { class: 'fine' }, 'Whoever has this link can answer it, so pass it only to yourself.'),
     actions(button('Use this link', submit, 'primary', { id: 'paste-go' }), button('Back', () => go({ name: 'method' }), 'quiet')),
   ];
 }
@@ -484,19 +486,19 @@ function incomingScreen(s: Extract<Screen, { name: 'incoming' }>): Node[] {
       'p',
       null,
       becomes === 'sender'
-        ? `It is a QRST pairing link from a device that wants to receive. If you continue, you choose what to send, and nothing leaves this device ${gate[check]}.`
-        : 'It is a QRST pairing link from a device that is sending. If you continue, this device shows you what arrived before keeping anything.',
+        ? `Nothing leaves this device ${gate[check]}.`
+        : 'This device shows you what arrived before keeping anything.',
     ),
     h(
       'p',
       { class: 'claim' },
       ...(params.origin
         ? ['The device that made it says it is a web page at ', h('strong', null, params.origin), '. Nothing has verified that.']
-        : ['The device that made it presents itself as an app, not a web page. Nothing has verified that.']),
+        : ['The device that made it says it is an app. Nothing has verified that.']),
     ),
-    h('p', { class: 'fine' }, 'This link was opened, not scanned with this page’s own camera, so this page has no evidence the QR code was ever in front of you.'),
+    h('p', { class: 'fine' }, 'It arrived as a link, so go on only if it came from your own other device.'),
     actions(
-      button(becomes === 'sender' ? 'Continue as the sender' : 'Continue as the receiver', () => proceedWith(s.pairing), 'primary', { id: 'incoming-go' }),
+      button(becomes === 'sender' ? 'Choose what to send' : 'Receive it', () => proceedWith(s.pairing), 'primary', { id: 'incoming-go' }),
       button('Open in an installed app', openInApp, 'plain', { id: 'incoming-app' }),
       button('Copy the link', async () => {
         copied.textContent = (await copyText(s.link)) ? 'Copied.' : 'Copying is blocked here; select the address bar instead.';
@@ -567,8 +569,7 @@ function relaysScreen(v: TransferView<string>): Built {
   update(v);
   return {
     nodes: [
-      title('Finding a relay'),
-      h('p', null, 'This device is sending itself a sealed message through each relay it knows. A relay goes into the QR code only if the message comes back.'),
+      title('Getting ready'),
       list,
       note,
       actions(button('Cancel', reset, 'quiet')),
@@ -581,15 +582,11 @@ function qrScreen(v: TransferView<string>): Built {
   const uri = v.uri!;
   const heavy = v.mode === 'offer';
   const left = h('span', { class: 'clock', 'aria-hidden': 'true' }, clock(v.session.expiresAt));
-  const relayLine = h('span');
   const linkBox = h('textarea', { class: 'link', id: 'pairing-link', readonly: true, rows: '3', 'aria-label': 'Pairing link' });
   linkBox.value = uri;
   const copied = h('span', { class: 'fine', role: 'status' });
   const update = (view: TransferView<string>) => {
     left.textContent = clock(view.session.expiresAt);
-    const using = view.relays.filter((r) => r.inUse);
-    const up = using.filter((r) => r.state === 'open').length;
-    relayLine.textContent = `Listening on ${up} of ${using.length} relay${using.length === 1 ? '' : 's'}: ${using.map((r) => host(r.url)).join(', ')}.`;
   };
   update(v);
   return {
@@ -603,7 +600,7 @@ function qrScreen(v: TransferView<string>): Built {
         qrSvg(uri, 'QRST pairing code'),
         h('figcaption', null, profile.direction[v.mode]),
       ),
-      h('p', { class: 'fine' }, 'This QR code works for ', left, ' more. ', relayLine),
+      h('p', { class: 'fine' }, 'This QR code works for ', left, ' more.'),
       h(
         'p',
         { class: v.session.check === 'none' ? 'claim' : 'fine' },
@@ -622,7 +619,7 @@ function qrScreen(v: TransferView<string>): Built {
           }, 'plain', { id: 'copy-link' }),
           copied,
         ),
-        h('p', { class: 'fine' }, 'The link holds a throwaway public key, relay addresses and a one-time token. Whoever has it can answer this QR code, so pass it only to yourself. It stops working when the QR code does.'),
+        h('p', { class: 'fine' }, 'Whoever has this link can answer this QR code, so pass it only to yourself. It stops working when the QR code does.'),
       ),
       actions(button('Cancel', reset, 'quiet')),
     ],
@@ -639,8 +636,8 @@ function contactingScreen(v: TransferView<string>): Built {
     note.textContent = view.connected
       ? 'Connected. Waiting for the other device to answer.'
       : Date.now() - since > 3000
-        ? 'Can’t reach the relays this QR code names yet. Still trying, for as long as the QR code is valid.'
-        : 'Connecting to the relays the QR code names.';
+        ? 'Can’t reach the other device yet. Still trying, for as long as the QR code is valid.'
+        : '';
   };
   update(v);
   return { nodes: [title('Contacting the other device'), note, list, actions(button('Cancel', reset, 'quiet'))], update };
@@ -743,7 +740,7 @@ function releaseScreen(v: TransferView<string>): Built {
   const claim = !v.showing
     ? origin
       ? ['The receiving device says it is a web page at ', h('strong', null, origin), '. That is its own claim. Nothing has verified it.']
-      : ['The receiving device presents itself as an app, not a web page. Nothing has verified that.']
+      : ['The receiving device says it is an app. Nothing has verified that.']
     : ['The receiving device has not said what it is.'];
 
   // §13, on the device that showed the code. Who else answered is something the user should know.
@@ -923,7 +920,7 @@ function receivedScreen(v: TransferView<string>): Node[] {
       }, 'plain', { id: 'copy-secret' }),
       copied,
     ),
-    h('p', { class: 'fine' }, 'This page has not saved it. Leaving or reloading the page erases it. Both throwaway keys have been destroyed.'),
+    h('p', { class: 'fine' }, 'This page has not saved it. Leaving or reloading the page erases it.'),
     actions(button('Done', reset, 'primary', { id: 'done' })),
   ];
 }
@@ -933,7 +930,7 @@ function endedScreen(v: TransferView<string>): Node[] {
   if (outcome === 'received') return receivedScreen(v);
   const sender = v.role === 'sender';
   const text: Record<Exclude<Outcome, 'received'>, [string, string]> = {
-    delivered: ['Delivered', 'The other device confirmed it has the text. Both throwaway keys have been destroyed.'],
+    delivered: ['Delivered', 'The other device confirmed it has the text.'],
     'sent-unconfirmed': [
       'Sent, but not confirmed',
       'The text left this device, and the other device did not confirm in time. Look at that device: it may still be asking whether to keep it.',
@@ -1020,7 +1017,7 @@ function otherDevice(v: TransferView<string> | undefined): Node[] {
   if (screen.name === 'incoming') return [p('The other device made this link and is waiting for an answer.')];
   if (!v || screen.name !== 'transfer') return [p('Nothing to do on the other device yet.')];
 
-  if (v.stage === 'relays') return [p('Nothing to do there yet. This device is finding a relay both can reach.')];
+  if (v.stage === 'relays') return [p('Nothing to do there yet.')];
   if (v.stage === 'ended') {
     return v.session.outcome === 'received' || v.session.outcome === 'delivered'
       ? [p('Done. It should say so too.')]
