@@ -2,8 +2,8 @@
 
 A profile for [QR_SECRET_TRANSFER.md](../QR_SECRET_TRANSFER.md) §5, in the shape of
 §5.2, for **signing in to a Nostr site or app with a remote signer** — a phone app, a
-browser extension, or a group of devices and servers that holds the key between them,
-such as [Cosign](https://github.com/sybenx/cosign).
+browser extension, or a set of devices and a box that holds the key between them,
+such as [Keykin](https://github.com/sybenx/keykin).
 
 What moves is a single-use **ticket**, never a key. The site redeems it with the user's
 signer as the secret of a NIP-46 `connect`, and from then on talks NIP-46 to that signer
