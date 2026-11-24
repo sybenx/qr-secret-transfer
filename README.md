@@ -24,7 +24,7 @@ This repository is three things:
 - **A protocol core** (`src/core/`) with no I/O, no DOM and no timers, plus the browser
   adapters that run it over relays (`src/web/`).
 - **The same core and relay layer in Kotlin** (`kotlin/`), a port line for line, for
-  Android and JVM apps. QRST Signer and Cosign build on it.
+  Android and JVM apps. [Marble](https://github.com/sybenx/marble) builds on it.
 
 **Status: a draft protocol and unaudited code.** Use made-up values, not real secrets.
 The event kinds are provisional and interoperability is not promised.
