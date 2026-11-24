@@ -230,7 +230,7 @@ test('role collision and foreign profiles are refused before anything is generat
   await expect(b.locator('#here .problem')).toContainText('also receiving');
   await b.fill('#link', offer.replace('p=qrst-demo-text', 'p=something-else'));
   await b.click('#paste-go');
-  await expect(b.locator('#here .problem')).toContainText('“something-else”, which this page does not handle');
+  await expect(b.locator('#here .problem')).toContainText('a different kind of secret');
   await b.fill('#link', offer.replace('v=1', 'v=9'));
   await b.click('#paste-go');
   await expect(b.locator('#here .problem')).toContainText('version of QRST this page does not speak');

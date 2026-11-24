@@ -87,7 +87,7 @@ test('with no relay that passes, it says so, keeps trying, and recovers', async 
   const laptop = await w.device(browser, [relay.url]);
   await laptop.click('#choose-receive');
   await laptop.click('#method-show');
-  await expect(heading(laptop)).toHaveText('Finding a relay');
+  await expect(heading(laptop)).toHaveText('Getting ready');
   await expect(laptop.locator('#here')).toContainText('did not pass: refused: blocked: maintenance');
   await expect(laptop.locator('#here')).toContainText('None has passed yet. Still trying.');
   // No code is shown that names an untested relay.
@@ -126,7 +126,7 @@ test('a pairing link opened in a page that makes this device the sender', async 
   const phone = await w.device(browser, [], { viewport: { width: 390, height: 844 }, url: link });
   await expect(heading(phone)).toHaveText('This link asks this device to send a secret');
   await expect(phone.locator('#here')).toContainText('says it is a web page at http://localhost');
-  await expect(phone.locator('#here')).toContainText('opened, not scanned');
+  await expect(phone.locator('#here')).toContainText('It arrived as a link');
   await shot(phone, 'g1-phone-bounce-sender');
   await phone.click('#incoming-go');
   // Nothing to send yet: it asks, and only then contacts the other device.
